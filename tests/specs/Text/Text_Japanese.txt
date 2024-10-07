@@ -1,692 +1,1264 @@
-~~ lineWidth: 40, textWrap: never ~~
+~~ lineWidth: 40, textWrap: maintain ~~
 !! Japanese specific tests !!
-[book-ja/src/ch04-01-what-is-ownership.md at master-ja · rust-lang-ja/book-ja](https://github.com/rust-lang-ja/book-ja/blob/master-ja/src/ch04-01-what-is-ownership.md)
+<!--
+## References and Borrowing
+-->
 
-## 所有権とは？
+## 参照と借用
 
-[](https://github.com/rust-lang-ja/book-ja/blob/master-ja/src/ch04-01-what-is-ownership.md#所有権とは)
+<!--
+The issue with the tuple code in Listing 4-5 is that we have to return the
+`String` to the calling function so we can still use the `String` after the
+call to `calculate_length`, because the `String` was moved into
+`calculate_length`.
+-->
 
-Rustの中心的な機能は、_所有権_です。この機能は、説明するのは簡単なのですが、言語の残りの機能全てにかかるほど 深い裏の意味を含んでいるのです。
+リスト4-5のタプルコードの問題は、`String`型を呼び出し元の関数に戻さないと、`calculate_length`を呼び出した後に、
+`String`オブジェクトが使えなくなることであり、これは`String`オブジェクトが`calculate_length`にムーブされてしまうためでした。
 
-全てのプログラムは、実行中にコンピュータのメモリの使用方法を管理する必要があります。プログラムが動作するにつれて、 定期的に使用されていないメモリを検索するガベージコレクションを持つ言語もありますが、他の言語では、 プログラマが明示的にメモリを確保したり、解放したりしなければなりません。Rustでは第3の選択肢を取っています: メモリは、コンパイラがコンパイル時にチェックする一定の規則とともに所有権システムを通じて管理されています。 どの所有権機能も、実行中にプログラムの動作を遅くすることはありません。
+<!--
+Here is how you would define and use a `calculate_length` function that has a
+reference to an object as a parameter instead of taking ownership of the
+value:
+-->
 
-所有権は多くのプログラマにとって新しい概念なので、慣れるまでに時間がかかります。 嬉しいことに、Rustと、所有権システムの規則の経験を積むと、より自然に安全かつ効率的なコードを構築できるようになります。 その調子でいきましょう！
+ここで、値の所有権をもらう代わりに引数としてオブジェクトへの参照を取る`calculate_length`関数を定義し、
+使う方法を見てみましょう:
 
-所有権を理解した時、Rustを際立たせる機能の理解に対する強固な礎を得ることになるでしょう。この章では、 非常に一般的なデータ構造に着目した例を取り扱うことで所有権を学んでいきます: 文字列です。
+<!--
+<span class="filename">Filename: src/main.rs</span>
+-->
 
-> ### スタックとヒープ
->
-> [](https://github.com/rust-lang-ja/book-ja/blob/master-ja/src/ch04-01-what-is-ownership.md#スタックとヒープ)
+<span class="filename">ファイル名: src/main.rs</span>
 
-> 多くのプログラミング言語において、スタックとヒープについて考える機会はそう多くないでしょう。 しかし、Rustのようなシステムプログラミング言語においては、値がスタックに積まれるかヒープに置かれるかは、 言語の振る舞い方や、特定の決断を下す理由などに影響以上のものを与えるのです。 この章の後半でスタックとヒープを交えて所有権の一部が解説されるので、ここでちょっと予行演習をしておきましょう。
->
-> スタックもヒープも、実行時にコードが使用できるメモリの一部になりますが、異なる手段で構成されています。 スタックは、得た順番に値を並べ、逆の順で値を取り除いていきます。これは、 _last in, first out_(`訳注`: あえて日本語にするなら、「最後に入れたものが最初に出てくる」といったところでしょうか)と呼ばれます。 お皿の山を思い浮かべてください: お皿を追加する時には、山の一番上に置き、お皿が必要になったら、一番上から1枚を取り去りますよね。 途中や一番下に追加したり、取り除いたりすることもできません。データを追加することは、 _スタックにpushする_といい、データを取り除くことは、_スタックからpopする_と表現します(`訳注`: 日本語では単純に英語をそのまま活用してプッシュ、ポップと表現するでしょう)。
->
-> データへのアクセス方法のおかげで、スタックは高速です: 新しいデータを置いたり、 データを取得する場所を探す必要が絶対にないわけです。というのも、その場所は常に一番上だからですね。 スタックを高速にする特性は他にもあり、それはスタック上のデータは全て既知の固定サイズでなければならないということです。
->
-> コンパイル時にサイズがわからなかったり、サイズが可変のデータについては、代わりにヒープに格納することができます。 ヒープは、もっとごちゃごちゃしています: ヒープにデータを置く時、あるサイズのスペースを求めます。 OSはヒープ上に十分な大きさの空の領域を見つけ、使用中にし、_ポインタ_を返します。ポインタとは、その場所へのアドレスです。 この過程は、_ヒープに領域を確保する(allocating on the heap)_と呼ばれ、時としてそのフレーズを単に_allocateする_などと省略したりします。 (`訳注`: こちらもこなれた日本語訳はないでしょう。allocateは「メモリを確保する」と訳したいところですが) スタックに値を積むことは、メモリ確保とは考えられません。ポインタは、既知の固定サイズなので、 スタックに保管することができますが、実データが必要になったら、ポインタを追いかける必要があります。
->
-> レストランで席を確保することを考えましょう。入店したら、グループの人数を告げ、 店員が全員座れる空いている席を探し、そこまで誘導します。もしグループの誰かが遅れて来るのなら、 着いた席の場所を尋ねてあなたを発見することができます。
->
-> ヒープへのデータアクセスは、スタックのデータへのアクセスよりも低速です。 ポインタを追って目的の場所に到達しなければならないからです。現代のプロセッサは、メモリをあちこち行き来しなければ、 より速くなります。似た例えを続けましょう。レストランで多くのテーブルから注文を受ける給仕人を考えましょう。最も効率的なのは、 次のテーブルに移らずに、一つのテーブルで全部の注文を受け付けてしまうことです。テーブルAで注文を受け、 それからテーブルBの注文、さらにまたA、それからまたBと渡り歩くのは、かなり低速な過程になってしまうでしょう。 同じ意味で、プロセッサは、 データが隔離されている(ヒープではそうなっている可能性がある)よりも近くにある(スタックではこうなる)ほうが、 仕事をうまくこなせるのです。ヒープに大きな領域を確保する行為も時間がかかることがあります。
->
-> コードが関数を呼び出すと、関数に渡された値(ヒープのデータへのポインタも含まれる可能性あり)と、 関数のローカル変数がスタックに載ります。関数の実行が終了すると、それらの値はスタックから取り除かれます。
->
-> どの部分のコードがどのヒープ上のデータを使用しているか把握すること、ヒープ上の重複するデータを最小化すること、 メモリ不足にならないようにヒープ上の未使用のデータを掃除することは全て、所有権が解決する問題です。 一度所有権を理解したら、あまり頻繁にスタックとヒープに関して考える必要はなくなるでしょうが、 ヒープデータを管理することが所有権の存在する理由だと知っていると、所有権がありのままで動作する理由を 説明するのに役立つこともあります。
-
-### 所有権規則
-
-[](https://github.com/rust-lang-ja/book-ja/blob/master-ja/src/ch04-01-what-is-ownership.md#所有権規則)
-
-まず、所有権のルールについて見ていきましょう。 この規則を具体化する例を扱っていく間もこれらのルールを肝に銘じておいてください:
-
-- Rustの各値は、_所有者_と呼ばれる変数と対応している。
-- いかなる時も所有者は一つである。
-- 所有者がスコープから外れたら、値は破棄される。
-
-### 変数スコープ
-
-[](https://github.com/rust-lang-ja/book-ja/blob/master-ja/src/ch04-01-what-is-ownership.md#変数スコープ)
-
-第2章で、Rustプログラムの例はすでに見ています。もう基本的な記法は通り過ぎたので、 `fn main() {`というコードはもう例に含みません。従って、例をなぞっているなら、 これからの例は`main`関数に手動で入れ込まなければいけなくなるでしょう。結果的に、例は少々簡潔になり、 定型コードよりも具体的な詳細に集中しやすくなります。
-
-所有権の最初の例として、何らかの変数の_スコープ_について見ていきましょう。スコープとは、 要素が有効になるプログラム内の範囲のことです。以下のような変数があるとしましょう:
-
-let s = "hello";
-
-変数`s`は、文字列リテラルを参照し、ここでは、文字列の値はプログラムのテキストとしてハードコードされています。 この変数は、宣言された地点から、現在の_スコープ_の終わりまで有効になります。リスト4-1には、 変数`s`が有効な場所に関する注釈がコメントで付記されています。
-
-{                      // sは、ここでは有効ではない。まだ宣言されていない
-    let s = "hello";   // sは、ここから有効になる
-
-    // sで作業をする
-}                      // このスコープは終わり。もうsは有効ではない
-
-リスト4-1: 変数と有効なスコープ
-
-言い換えると、ここまでに重要な点は二つあります:
-
-- `s`が_スコープに入る_と、有効になる
-- _スコープを抜ける_まで、有効なまま
-
-ここで、スコープと変数が有効になる期間の関係は、他の言語に類似しています。さて、この理解のもとに、 `String`型を導入して構築していきましょう。
-
-### `String`型
-
-[](https://github.com/rust-lang-ja/book-ja/blob/master-ja/src/ch04-01-what-is-ownership.md#string型)
-
-所有権の規則を具体化するには、第3章の「データ型」節で講義したものよりも、より複雑なデータ型が必要になります。 以前講義した型は全てスタックに保管され、スコープが終わるとスタックから取り除かれますが、 ヒープに確保されるデータ型を観察して、 コンパイラがどうそのデータを掃除すべきタイミングを把握しているかを掘り下げていきたいと思います。
-
-ここでは、例として`String`型を使用し、`String`型の所有権にまつわる部分に着目しましょう。 また、この観点は、標準ライブラリや自分で生成する他の複雑なデータ型にも適用されます。 `String`型については、第8章でより深く議論します。
-
-既に文字列リテラルは見かけましたね。文字列リテラルでは、文字列の値はプログラムにハードコードされます。 文字列リテラルは便利ですが、テキストを使いたいかもしれない場面全てに最適なわけではありません。一因は、 文字列リテラルが不変であることに起因します。別の原因は、コードを書く際に、全ての文字列値が判明するわけではないからです: 例えば、ユーザ入力を受け付け、それを保持したいとしたらどうでしょうか？このような場面用に、Rustには、 2種類目の文字列型、`String`型があります。この型はヒープにメモリを確保するので、 コンパイル時にはサイズが不明なテキストも保持することができるのです。`from`関数を使用して、 文字列リテラルから`String`型を生成できます。以下のように:
-
-let s = String::from("hello");
-
-この二重コロンは、`string_from`などの名前を使うのではなく、 `String`型直下の`from`関数を特定する働きをする演算子です。この記法について詳しくは、 第5章の「メソッド記法」節と、第7章の「モジュール定義」でモジュールを使った名前空間分けについて話をするときに議論します。
-
-この種の文字列は、可変化することが_できます_:
-
-let mut s = String::from("hello");
-
-s.push_str(", world!"); // push_str()関数は、リテラルをStringに付け加える
-
-println!("{}", s); // これは\`hello, world!\`と出力する
-
-では、ここでの違いは何でしょうか？なぜ、`String`型は可変化できるのに、リテラルはできないのでしょうか？ 違いは、これら二つの型がメモリを扱う方法にあります。
-
-### メモリと確保
-
-[](https://github.com/rust-lang-ja/book-ja/blob/master-ja/src/ch04-01-what-is-ownership.md#メモリと確保)
-
-文字列リテラルの場合、中身はコンパイル時に判明しているので、テキストは最終的なバイナリファイルに直接ハードコードされます。 このため、文字列リテラルは、高速で効率的になるのです。しかし、これらの特性は、 その文字列リテラルの不変性にのみ端を発するものです。残念なことに、コンパイル時にサイズが不明だったり、 プログラム実行に合わせてサイズが可変なテキスト片用に一塊のメモリをバイナリに確保しておくことは不可能です。
-
-`String`型では、可変かつ伸長可能なテキスト破片をサポートするために、コンパイル時には不明な量のメモリを ヒープに確保して内容を保持します。つまり:
-
-- メモリは、実行時にOSに要求される。
-- `String`型を使用し終わったら、OSにこのメモリを返還する方法が必要である。
-
-この最初の部分は、既にしています: `String::from`関数を呼んだら、その実装が必要なメモリを要求するのです。 これは、プログラミング言語において、極めて普遍的です。
-
-しかしながら、2番目の部分は異なります。_ガベージコレクタ_(GC)付きの言語では、GCがこれ以上、 使用されないメモリを検知して片付けるため、プログラマは、そのことを考慮する必要はありません。 GCがないなら、メモリがもう使用されないことを見計らって、明示的に返還するコードを呼び出すのは、 プログラマの責任になります。ちょうど要求の際にしたようにですね。これを正確にすることは、 歴史的にも難しいプログラミング問題の一つであり続けています。もし、忘れていたら、メモリを無駄にします。 タイミングが早すぎたら、無効な変数を作ってしまいます。2回解放してしまっても、バグになるわけです。 `allocate`と`free`は完璧に1対1対応にしなければならないのです。
-
-Rustは、異なる道を歩んでいます: ひとたび、メモリを所有している変数がスコープを抜けたら、 メモリは自動的に返還されます。こちらの例は、 リスト4-1のスコープ例を文字列リテラルから`String`型を使うものに変更したバージョンになります:
-
-{
-    let s = String::from("hello"); // sはここから有効になる
-
-    // sで作業をする
-}                                  // このスコープはここでおしまい。sは
-                                   // もう有効ではない
-
-`String`型が必要とするメモリをOSに返還することが自然な地点があります: `s`変数がスコープを抜ける時です。 変数がスコープを抜ける時、Rustは特別な関数を呼んでくれます。この関数は、`drop`と呼ばれ、 ここに`String`型の書き手はメモリを返還するコードを配置することができます。Rustは、閉じ波括弧で自動的に`drop`関数を呼び出します。
-
-> 注釈: C++では、要素の生存期間の終了地点でリソースを解放するこのパターンを時に、 _RAII_(Resource Aquisition Is Initialization: リソースの獲得は、初期化である)と呼んだりします。 Rustの`drop`関数は、あなたがRAIIパターンを使ったことがあれば、馴染み深いものでしょう。
-
-このパターンは、Rustコードの書かれ方に甚大な影響をもたらします。現状は簡単そうに見えるかもしれませんが、 ヒープ上に確保されたデータを複数の変数に使用させるようなもっと複雑な場面では、コードの振る舞いは、 予期しないものになる可能性もあります。これから、そのような場面を掘り下げてみましょう。
-
-#### 変数とデータの相互作用法: ムーブ
-
-[](https://github.com/rust-lang-ja/book-ja/blob/master-ja/src/ch04-01-what-is-ownership.md#変数とデータの相互作用法-ムーブ)
-
-Rustにおいては、複数の変数が同じデータに対して異なる手段で相互作用することができます。 整数を使用したリスト4-2の例を見てみましょう。
-
-let x = 5;
-let y = x;
-
-リスト4-2: 変数`x`の整数値を`y`に代入する
-
-もしかしたら、何をしているのか予想することができるでしょう: 「値`5`を`x`に束縛する; それから`x`の値をコピーして`y`に束縛する。」これで、 二つの変数(`x`と`y`)が存在し、両方、値は`5`になりました。これは確かに起こっている現象を説明しています。 なぜなら、整数は既知の固定サイズの単純な値で、これら二つの`5`という値は、スタックに積まれるからです。
-
-では、`String`バージョンを見ていきましょう:
-
-let s1 = String::from("hello");
-let s2 = s1;
-
-このコードは先ほどのコードに酷似していますので、動作方法も同じだと思い込んでしまうかもしれません: 要するに、2行目で`s1`の値をコピーし、`s2`に束縛するということです。ところが、 これは全く起こることを言い当てていません。
-
-図4-1を見て、ベールの下で`String`に何が起きているかを確かめてください。 `String`型は、左側に示されているように、3つの部品でできています: 文字列の中身を保持するメモリへのポインタと長さ、そして、許容量です。この種のデータは、スタックに保持されます。 右側には、中身を保持したヒープ上のメモリがあります。
-
-[![メモリ上の文字列](https://github.com/rust-lang-ja/book-ja/raw/master-ja/src/img/trpl04-01.svg)](https://github.com/rust-lang-ja/book-ja/blob/master-ja/src/img/trpl04-01.svg)
-
-図4-1: `s1`に束縛された`"hello"`という値を保持する`String`のメモリ上の表現
-
-長さは、`String`型の中身が現在使用しているメモリ量をバイトで表したものです。許容量は、 `String`型がOSから受け取った全メモリ量をバイトで表したものです。長さと許容量の違いは問題になることですが、 この文脈では違うので、とりあえずは、許容量を無視しても構わないでしょう。
-
-`s1`を`s2`に代入すると、`String`型のデータがコピーされます。つまり、スタックにあるポインタ、長さ、 許容量をコピーするということです。ポインタが指すヒープ上のデータはコピーしません。言い換えると、 メモリ上のデータ表現は図4-2のようになるということです。
-
-[![同じ値を指すs1とs2](https://github.com/rust-lang-ja/book-ja/raw/master-ja/src/img/trpl04-02.svg)](https://github.com/rust-lang-ja/book-ja/blob/master-ja/src/img/trpl04-02.svg)
-
-図4-2: `s1`のポインタ、長さ、許容量のコピーを保持する変数`s2`のメモリ上での表現
-
-メモリ上の表現は、図4-3のようにはなり_ません_。これは、 Rustが代わりにヒープデータもコピーするという選択をしていた場合のメモリ表現ですね。Rustがこれをしていたら、 ヒープ上のデータが大きい時に`s2 = s1`という処理の実行時性能がとても悪くなっていた可能性があるでしょう。
-
-[![2箇所へのs1とs2](https://github.com/rust-lang-ja/book-ja/raw/master-ja/src/img/trpl04-03.svg)](https://github.com/rust-lang-ja/book-ja/blob/master-ja/src/img/trpl04-03.svg)
-
-図4-3: Rustがヒープデータもコピーしていた場合に`s2 = s1`という処理が行なった可能性のあること
-
-先ほど、変数がスコープを抜けたら、Rustは自動的に`drop`関数を呼び出し、 その変数が使っていたヒープメモリを片付けると述べました。しかし、図4-2は、 両方のデータポインタが同じ場所を指していることを示しています。これは問題です: `s2`と`s1`がスコープを抜けたら、 両方とも同じメモリを解放しようとします。これは_二重解放_エラーとして知られ、以前触れたメモリ安全性上のバグの一つになります。 メモリを2回解放することは、memory corruption (`訳注`: メモリの崩壊。意図せぬメモリの書き換え) につながり、 セキュリティ上の脆弱性を生む可能性があります。
-
-メモリ安全性を保証するために、Rustにおいてこの場面で起こることの詳細がもう一つあります。 確保されたメモリをコピーしようとする代わりに、コンパイラは、`s1`が最早有効ではないと考え、 故に`s1`がスコープを抜けた際に何も解放する必要がなくなるわけです。`s2`の生成後に`s1`を使用しようとしたら、 どうなるかを確認してみましょう。動かないでしょう:
-
-let s1 = String::from("hello");
-let s2 = s1;
-
-println!("{}, world!", s1);
-
-コンパイラが無効化された参照は使用させてくれないので、以下のようなエラーが出るでしょう:
-
-```
-error[E0382]: use of moved value: `s1`
-              (ムーブされた値の使用: `s1`)
- --> src/main.rs:5:28
-  |
-3 |     let s2 = s1;
-  |         -- value moved here
-4 |
-5 |     println!("{}, world!", s1);
-  |                            ^^ value used here after move
-  |                               (ムーブ後にここで使用されています)
-  |
-  = note: move occurs because `s1` has type `std::string::String`, which does
-  not implement the `Copy` trait
-    (注釈: ムーブが起きたのは、`s1`が`std::string::String`という
-    `Copy`トレイトを実装していない型だからです)
-```
-
-他の言語を触っている間に"shallow copy"と"deep copy"という用語を耳にしたことがあるなら、 データのコピーなしにポインタと長さ、許容量をコピーするという概念は、shallow copyのように思えるかもしれません。 ですが、コンパイラは最初の変数をも無効化するので、shallow copyと呼ばれる代わりに、 _ムーブ_として知られているわけです。この例では、`s1`は`s2`に_ムーブ_されたと表現するでしょう。 以上より、実際に起きることを図4-4に示してみました。
-
-[![s2にムーブされたs1](https://github.com/rust-lang-ja/book-ja/raw/master-ja/src/img/trpl04-04.svg)](https://github.com/rust-lang-ja/book-ja/blob/master-ja/src/img/trpl04-04.svg)
-
-図4-4: `s1`が無効化された後のメモリ表現
-
-これにて一件落着です。`s2`だけが有効なので、スコープを抜けたら、それだけがメモリを解放して、 終わりになります。
-
-付け加えると、これにより暗示される設計上の選択があります: Rustでは、 自動的にデータの"deep copy"が行われることは絶対にないわけです。それ故に、あらゆる_自動_コピーは、実行時性能の観点で言うと、 悪くないと考えてよいことになります。
-
-#### 変数とデータの相互作用法: クローン
-
-[](https://github.com/rust-lang-ja/book-ja/blob/master-ja/src/ch04-01-what-is-ownership.md#変数とデータの相互作用法-クローン)
-
-仮に、スタック上のデータだけでなく、_本当に_`String`型のヒープデータのdeep copyが必要ならば、 `clone`と呼ばれるよくあるメソッドを使うことができます。メソッド記法については第5章で議論しますが、 メソッドは多くのプログラミング言語に見られる機能なので、以前に見かけたこともあるんじゃないでしょうか。
-
-これは、`clone`メソッドの動作例です:
-
-let s1 = String::from("hello");
-let s2 = s1.clone();
-
-println!("s1 = {}, s2 = {}", s1, s2);
-
-これは問題なく動作し、図4-3で示した動作を明示的に生み出します。ここでは、 ヒープデータが_実際に_コピーされています。
-
-`clone`メソッドの呼び出しを見かけたら、何らかの任意のコードが実行され、その実行コストは高いと把握できます。 何か違うことが起こっているなと見た目でわかるわけです。
-
-#### スタックのみのデータ: コピー
-
-[](https://github.com/rust-lang-ja/book-ja/blob/master-ja/src/ch04-01-what-is-ownership.md#スタックのみのデータ-コピー)
-
-まだ話題にしていない別の問題があります。 この整数を使用したコードは、一部をリスト4-2で示しましたが、うまく動作する有効なものです:
-
-let x = 5;
-let y = x;
-
-println!("x = {}, y = {}", x, y);
-
-ですが、このコードは一見、今学んだことと矛盾しているように見えます: `clone`メソッドの呼び出しがないのに、`x`は有効で、`y`にムーブされませんでした。
-
-その理由は、整数のようなコンパイル時に既知のサイズを持つ型は、スタック上にすっぽり保持されるので、 実際の値をコピーするのも高速だからです。これは、変数`y`を生成した後にも`x`を無効化したくなる理由がないことを意味します。 換言すると、ここでは、shallow copyとdeep copyの違いがないことになり、 `clone`メソッドを呼び出しても、一般的なshallow copy以上のことをしなくなり、 そのまま放置しておけるということです。
-
-Rustには`Copy`トレイトと呼ばれる特別な注釈があり、 整数のようなスタックに保持される型に対して配置することができます(トレイトについては第10章でもっと詳しく話します)。 型が`Copy`トレイトに適合していれば、代入後も古い変数が使用可能になります。コンパイラは、 型やその一部分でも`Drop`トレイトを実装している場合、`Copy`トレイトによる注釈をさせてくれません。 型の値がスコープを外れた時に何か特別なことを起こす必要がある場合に、`Copy`注釈を追加すると、コンパイルエラーが出ます。 型に`Copy`注釈をつける方法について学ぶには、付録Cの「導出可能なトレイト」をご覧ください。
-
-では、どの型が`Copy`なのでしょうか？ある型について、ドキュメントをチェックすればいいのですが、 一般規則として、単純なスカラー値の集合は何でも`Copy`であり、メモリ確保が必要だったり、 何らかの形態のリソースだったりするものは`Copy`ではありません。ここに`Copy`の型の一部を並べておきます。
-
-- あらゆる整数型。`u32`など。
-- 論理値型である`bool`。`true`と`false`という値がある。
-- あらゆる浮動小数点型、`f64`など。
-- 文字型である`char`。
-- タプル。ただ、`Copy`の型だけを含む場合。例えば、`(i32, i32)`は`Copy`だが、 `(i32, String)`は違う。
-
-### 所有権と関数
-
-[](https://github.com/rust-lang-ja/book-ja/blob/master-ja/src/ch04-01-what-is-ownership.md#所有権と関数)
-
-意味論的に、関数に値を渡すことと、値を変数に代入することは似ています。関数に変数を渡すと、 代入のようにムーブやコピーされます。リスト4-3は変数がスコープに入ったり、 抜けたりする地点について注釈してある例です。
-
-ファイル名: src/main.rs
-
-fn main() {
-    let s = String::from("hello");  // sがスコープに入る
-
-    takes_ownership(s);             // sの値が関数にムーブされ...
-                                    // ... ここではもう有効ではない
-
-    let x = 5;                      // xがスコープに入る
-
-    makes_copy(x);                  // xも関数にムーブされるが、
-                                    // i32はCopyなので、この後にxを使っても
-                                    // 大丈夫
-
-} // ここでxがスコープを抜け、sもスコープを抜ける。ただし、sの値はムーブされているので、何も特別なことは起こらない。
-  //
-
-fn takes_ownership(some_string: String) { // some_stringがスコープに入る。
-    println!("{}", some_string);
-} // ここでsome_stringがスコープを抜け、\`drop\`が呼ばれる。後ろ盾してたメモリが解放される。
-  //
-
-fn makes_copy(some_integer: i32) { // some_integerがスコープに入る
-    println!("{}", some_integer);
-} // ここでsome_integerがスコープを抜ける。何も特別なことはない。
-
-リスト4-3: 所有権とスコープが注釈された関数群
-
-`takes_ownership`の呼び出し後に`s`を呼び出そうとすると、コンパイラは、コンパイルエラーを投げるでしょう。 これらの静的チェックにより、ミスを犯さないでいられます。`s`や`x`を使用するコードを`main`に追加してみて、 どこで使えて、そして、所有権規則により、どこで使えないかを確認してください。
-
-### 戻り値とスコープ
-
-[](https://github.com/rust-lang-ja/book-ja/blob/master-ja/src/ch04-01-what-is-ownership.md#戻り値とスコープ)
-
-値を返すことでも、所有権は移動します。リスト4-4は、リスト4-3と似た注釈のついた例です。
-
-ファイル名: src/main.rs
-
-fn main() {
-    let s1 = gives_ownership();         // gives_ownershipは、戻り値をs1に
-                                        // ムーブする
-
-    let s2 = String::from("hello");     // s2がスコープに入る
-
-    let s3 = takes\_and\_gives_back(s2);  // s2はtakes\_and\_gives_backにムーブされ
-                                        // 戻り値もs3にムーブされる
-} // ここで、s3はスコープを抜け、ドロップされる。s2もスコープを抜けるが、ムーブされているので、
-  // 何も起きない。s1もスコープを抜け、ドロップされる。
-
-fn gives_ownership() -\&gt; String {             // gives_ownershipは、戻り値を
-                                             // 呼び出した関数にムーブする
-
-    let some_string = String::from("hello"); // some_stringがスコープに入る
-
-    some_string                              // some_stringが返され、呼び出し元関数に
-                                             // ムーブされる
-}
-
-// takes\_and\_gives_backは、Stringを一つ受け取り、返す。
-fn takes\_and\_gives_back(a_string: String) -\&gt; String { // a_stringがスコープに入る。
-
-    a_string  // a_stringが返され、呼び出し元関数にムーブされる
-}
-
-リスト4-4: 戻り値の所有権を移動する
-
-変数の所有権は、毎回同じパターンを辿っています: 別の変数に値を代入すると、ムーブされます。 ヒープにデータを含む変数がスコープを抜けると、データが別の変数に所有されるようムーブされていない限り、 `drop`により片付けられるでしょう。
-
-所有権を取り、またその所有権を戻す、ということを全ての関数でしていたら、ちょっとめんどくさいですね。 関数に値は使わせるものの所有権を取らないようにさせるにはどうするべきでしょうか。 返したいと思うかもしれない関数本体で発生したあらゆるデータとともに、再利用したかったら、渡されたものをまた返さなきゃいけないのは、 非常に煩わしいことです。
-
-タプルで、複数の値を返すことは可能です。リスト4-5のようにですね。
-
-ファイル名: src/main.rs
-
+```rust
 fn main() {
     let s1 = String::from("hello");
 
-    let (s2, len) = calculate_length(s1);
+    let len = calculate_length(&s1);
 
-    //'{}'の長さは、{}です
-    println!("The length of '{}' is {}.", s2, len);
+    // '{}'の長さは、{}です
+    println!("The length of '{}' is {}.", s1, len);
 }
 
-fn calculate_length(s: String) -\&gt; (String, usize) {
-    let length = s.len(); // len()メソッドは、Stringの長さを返します
+fn calculate_length(s: &String) -> usize {
+    s.len()
+}
+```
 
-    (s, length)
+<!--
+First, notice that all the tuple code in the variable declaration and the
+function return value is gone. Second, note that we pass `&s1` into
+`calculate_length` and, in its definition, we take `&String` rather than
+`String`.
+-->
+
+まず、変数宣言と関数の戻り値にあったタプルコードは全てなくなったことに気付いてください。
+2番目に、`&s1`を`calcuate_length`に渡し、その定義では、`String`型ではなく、`&String`を受け取っていることに注目してください。
+
+<!--
+These ampersands are *references*, and they allow you to refer to some value
+without taking ownership of it. Figure 4-5 shows a diagram.
+-->
+
+これらのアンド記号が参照であり、これのおかげで所有権をもらうことなく値を参照することができるのです。
+図4-5はその図解です。
+
+<!--
+<img alt="&String s pointing at String s1" src="img/trpl04-05.svg" class="center" />
+-->
+
+<img alt="文字列s1を指す&amp;String型のs" src="img/trpl04-05.svg" class="center" />
+
+<!--
+<span class="caption">Figure 4-5: A diagram of `&String s` pointing at `String
+s1`</span>
+-->
+
+<span class="caption">図4-5: `String s1`を指す`&String s`の図表</span>
+
+<!--
+Note: The opposite of referencing by using `&` is *dereferencing*, which is
+accomplished with the dereference operator, `*`. We’ll see some uses of the
+dereference operator in Chapter 8 and discuss details of dereferencing in
+Chapter 15.
+-->
+
+> 注釈: `&`による参照の逆は、*参照外し*であり、参照外し演算子の`*`で達成できます。
+> 第8章で参照外し演算子の使用例を眺め、第15章で参照外しについて詳しく議論します。
+
+<!--
+Let’s take a closer look at the function call here:
+-->
+
+ここの関数呼び出しについて、もっと詳しく見てみましょう:
+
+```rust
+# fn calculate_length(s: &String) -> usize {
+#     s.len()
+# }
+let s1 = String::from("hello");
+
+let len = calculate_length(&s1);
+```
+
+<!--
+The `&s1` syntax lets us create a reference that *refers* to the value of `s1`
+but does not own it. Because it does not own it, the value it points to will
+not be dropped when the reference goes out of scope.
+-->
+
+この`&s1`という記法により、`s1`の値を*参照する*参照を生成することができますが、これを所有することはありません。
+所有してないということは、指している値は、参照がスコープを抜けてもドロップされないということです。
+
+<!--
+Likewise, the signature of the function uses `&` to indicate that the type of
+the parameter `s` is a reference. Let’s add some explanatory annotations:
+-->
+
+同様に、関数のシグニチャでも、`&`を使用して引数`s`の型が参照であることを示しています。
+説明的な注釈を加えてみましょう:
+
+<!--
+```rust
+fn calculate_length(s: &String) -> usize { // s is a reference to a String
+s.len()
+} // Here, s goes out of scope. But because it does not have ownership of what
+// it refers to, nothing happens.
+```
+-->
+
+```rust
+fn calculate_length(s: &String) -> usize { // sはStringへの参照
+    s.len()
+} // ここで、sはスコープ外になる。けど、参照しているものの所有権を持っているわけではないので
+  // 何も起こらない
+```
+
+<!--
+The scope in which the variable `s` is valid is the same as any function
+parameter's scope, but we don’t drop what the reference points to when it goes
+out of scope because we don’t have ownership. When functions have references as
+parameters instead of the actual values, we won’t need to return the values in
+order to give back ownership, since we never had ownership.
+-->
+
+変数`s`が有効なスコープは、あらゆる関数の引数のものと同じですが、所有権はないので、`s`がスコープを抜けても、
+参照が指しているものをドロップすることはありません。関数が実際の値の代わりに参照を引数に取ると、
+所有権をもらわないので、所有権を返す目的で値を返す必要はありません。
+
+<!--
+We call having references as function parameters *borrowing*. As in real life,
+if a person owns something, you can borrow it from them. When you’re done, you
+have to give it back.
+-->
+
+関数の引数に参照を取ることを*借用*と呼びます。現実生活のように、誰かが何かを所有していたら、
+それを借りることができます。用が済んだら、返さなきゃいけないわけです。
+
+<!--
+So what happens if we try to modify something we’re borrowing? Try the code in
+Listing 4-6. Spoiler alert: it doesn’t work!
+-->
+
+では、借用した何かを変更しようとしたら、どうなるのでしょうか？リスト4-6のコードを試してください。
+ネタバレ注意: 動きません！
+
+<!--
+<span class="filename">Filename: src/main.rs</span>
+-->
+
+<span class="filename">ファイル名: src/main.rs</span>
+
+```rust,ignore
+fn main() {
+    let s = String::from("hello");
+
+    change(&s);
 }
 
-リスト4-5: 引数の所有権を返す
+fn change(some_string: &String) {
+    some_string.push_str(", world");
+}
+```
 
-でも、これでは、大袈裟すぎますし、ありふれているはずの概念に対して、作業量が多すぎます。 私たちにとって幸運なことに、Rustにはこの概念に対する機能があり、_参照_と呼ばれます。
+<!--
+<span class="caption">Listing 4-6: Attempting to modify a borrowed value</span>
+-->
+
+<span class="caption">リスト4-6: 借用した値を変更しようと試みる</span>
+
+<!--
+Here’s the error:
+-->
+
+これがエラーです:
+
+```text
+error[E0596]: cannot borrow immutable borrowed content `*some_string` as mutable
+(エラー: 不変な借用をした中身`*some_string`を可変で借用できません)
+ --> error.rs:8:5
+  |
+7 | fn change(some_string: &String) {
+  |                        ------- use `&mut String` here to make mutable
+8 |     some_string.push_str(", world");
+  |     ^^^^^^^^^^^ cannot borrow as mutable
+```
+
+<!--
+Just as variables are immutable by default, so are references. We’re not
+allowed to modify something we have a reference to.
+-->
+
+変数が標準で不変なのと全く同様に、参照も不変なのです。参照している何かを変更することは叶わないわけです。
+
+<!--
+### Mutable References
+-->
+
+### 可変な参照
+
+<!--
+We can fix the error in the code from Listing 4-6 with just a small tweak:
+-->
+
+一捻り加えるだけでリスト4-6のコードのエラーは解決します:
+
+<!--
+<span class="filename">Filename: src/main.rs</span>
+-->
+
+<span class="filename">ファイル名: src/main.rs</span>
+
+```rust
+fn main() {
+    let mut s = String::from("hello");
+
+    change(&mut s);
+}
+
+fn change(some_string: &mut String) {
+    some_string.push_str(", world");
+}
+```
+
+<!--
+First, we had to change `s` to be `mut`. Then we had to create a mutable
+reference with `&mut s` and accept a mutable reference with `some_string: &mut
+String`.
+-->
+
+始めに、`s`を`mut`に変えなければなりませんでした。そして、`&mut s`で可変な参照を生成し、
+`some_string: &mut String`で可変な参照を受け入れなければなりませんでした。
+
+<!--
+But mutable references have one big restriction: you can have only one mutable
+reference to a particular piece of data in a particular scope. This code will
+fail:
+-->
+
+ところが、可変な参照には大きな制約が一つあります: 特定のスコープで、ある特定のデータに対しては、
+一つしか可変な参照を持てないことです。こちらのコードは失敗します:
+
+<!--
+<span class="filename">Filename: src/main.rs</span>
+-->
+
+<span class="filename">ファイル名: src/main.rs</span>
+
+```rust,ignore
+    let mut s = String::from("hello");
+
+    let r1 = &mut s;
+    let r2 = &mut s;
+
+    println!("{}, {}", r1, r2);
+```
+
+<!--
+Here’s the error:
+-->
+
+これがエラーです:
+
+```text
+$ cargo run
+   Compiling ownership v0.1.0 (file:///projects/ownership)
+error[E0499]: cannot borrow `s` as mutable more than once at a time
+(エラー: 一度に`s`を可変として2回以上借用することはできません)
+ --> src/main.rs:5:14
+  |
+4 |     let r1 = &mut s;
+  |              ------ first mutable borrow occurs here
+  |                    (最初の可変な参照はここ)
+5 |     let r2 = &mut s;
+  |              ^^^^^^ second mutable borrow occurs here
+  |                    (二つ目の可変な参照はここ)
+6 |
+7 |     println!("{}, {}", r1, r2);
+  |                        -- first borrow later used here
+
+error: aborting due to previous error
+
+For more information about this error, try `rustc --explain E0499`.
+error: could not compile `ownership`
+
+To learn more, run the command again with --verbose.
+```
+
+<!--
+This restriction allows for mutation but in a very controlled fashion. It’s
+something that new Rustaceans struggle with, because most languages let you
+mutate whenever you’d like.
+-->
+
+この制約は、可変化を許可するものの、それを非常に統制の取れた形で行えます。これは、新たなRustaceanにとっては、
+壁です。なぜなら、多くの言語では、いつでも好きな時に可変化できるからです。
+
+<!--
+The benefit of having this restriction is that Rust can prevent data races at
+compile time. A *data race* is similar to a race condition and happens when
+these three behaviors occur:
+-->
+
+この制約がある利点は、コンパイラがコンパイル時にデータ競合を防ぐことができる点です。
+データ競合とは、競合条件と類似していて、これら3つの振る舞いが起きる時に発生します:
+
+<!--
+* Two or more pointers access the same data at the same time.
+* At least one of the pointers is being used to write to the data.
+* There’s no mechanism being used to synchronize access to the data.
+-->
+
+* 2つ以上のポインタが同じデータに同時にアクセスする。
+* 少なくとも一つのポインタがデータに書き込みを行っている。
+* データへのアクセスを同期する機構が使用されていない。
+
+<!--
+Data races cause undefined behavior and can be difficult to diagnose and fix
+when you’re trying to track them down at runtime; Rust prevents this problem
+from happening because it won’t even compile code with data races!
+-->
+
+データ競合は未定義の振る舞いを引き起こし、実行時に追いかけようとした時に特定し解決するのが難しい問題です。
+しかし、Rustは、データ競合が起こるコードをコンパイルさえしないので、この問題が発生しないようにしてくれるわけです。
+
+<!--
+As always, we can use curly brackets to create a new scope, allowing for
+multiple mutable references, just not *simultaneous* ones:
+-->
+
+いつものように、波かっこを使って新しいスコープを生成し、*同時並行*なものでなく、複数の可変な参照を作ることができます。
+
+<!--
+```rust
+let mut s = String::from("hello");
+-->
+
+<!--
+{
+let r1 = &mut s;
+-->
+
+<!--
+} // r1 goes out of scope here, so we can make a new reference with no problems.
+-->
+
+<!--
+let r2 = &mut s;
+```
+-->
+
+```rust
+let mut s = String::from("hello");
+
+{
+    let r1 = &mut s;
+
+} // r1はここでスコープを抜けるので、問題なく新しい参照を作ることができる
+
+let r2 = &mut s;
+```
+
+<!--
+A similar rule exists for combining mutable and immutable references. This code
+results in an error:
+-->
+
+可変と不変な参照を組み合わせることに関しても、似たような規則が存在しています。このコードはエラーになります:
+
+<!--
+```rust,ignore
+let mut s = String::from("hello");
+-->
+
+<!--
+let r1 = &s; // no problem
+let r2 = &s; // no problem
+let r3 = &mut s; // BIG PROBLEM
+```
+-->
+
+```rust,ignore
+let mut s = String::from("hello");
+
+let r1 = &s; // 問題なし
+let r2 = &s; // 問題なし
+let r3 = &mut s; // 大問題！
+```
+
+<!--
+Here’s the error:
+-->
+
+これがエラーです:
+
+```text
+error[E0502]: cannot borrow `s` as mutable because it is also borrowed as
+immutable
+(エラー: `s`は不変で借用されているので、可変で借用できません)
+ --> borrow_thrice.rs:6:19
+  |
+4 |     let r1 = &s; // no problem
+  |               - immutable borrow occurs here
+5 |     let r2 = &s; // no problem
+6 |     let r3 = &mut s; // BIG PROBLEM
+  |                   ^ mutable borrow occurs here
+7 | }
+  | - immutable borrow ends here
+```
+
+<!--
+Whew! We *also* cannot have a mutable reference while we have an immutable one.
+Users of an immutable reference don’t expect the values to suddenly change out
+from under them! However, multiple immutable references are okay because no one
+who is just reading the data has the ability to affect anyone else’s reading of
+the data.
+-->
+
+ふう！*さらに*不変な参照をしている間は、可変な参照をすることはできません。不変参照の使用者は、
+それ以降に値が突然変わることなんて予想してません！しかしながら、複数の不変参照をすることは可能です。
+データを読み込んでいるだけの人に、他人がデータを読み込むことに対して影響を与える能力はないからです。
+
+<!--
+Even though these errors may be frustrating at times, remember that it’s the
+Rust compiler pointing out a potential bug early (at compile time rather than
+at runtime) and showing you exactly where the problem is. Then you don't have
+to track down why your data isn’t what you thought it was.
+-->
+
+これらのエラーは、時としてイライラするものではありますが、Rustコンパイラがバグの可能性を早期に指摘してくれ(それも実行時ではなくコンパイル時に)、
+問題の発生箇所をズバリ示してくれるのだと覚えておいてください。そうして想定通りにデータが変わらない理由を追いかける必要がなくなります。
+
+<!--
+### Dangling References
+-->
+
+### 宙に浮いた参照
+
+<!--
+In languages with pointers, it’s easy to erroneously create a *dangling
+pointer*, a pointer that references a location in memory that may have been
+given to someone else, by freeing some memory while preserving a pointer to
+that memory. In Rust, by contrast, the compiler guarantees that references will
+never be dangling references: if you have a reference to some data, the
+compiler will ensure that the data will not go out of scope before the
+reference to the data does.
+-->
+
+ポインタのある言語では、誤ってダングリングポインタを生成してしまいやすいです。ダングリングポインタとは、
+他人に渡されてしまった可能性のあるメモリを指すポインタのことであり、その箇所へのポインタを保持している間に、
+メモリを解放してしまうことで発生します。対照的にRustでは、コンパイラが、
+参照がダングリング参照に絶対ならないよう保証してくれます: つまり、何らかのデータへの参照があったら、
+コンパイラは参照がスコープを抜けるまで、データがスコープを抜けることがないよう確認してくれるわけです。
+
+<!--
+Let’s try to create a dangling reference, which Rust will prevent with a
+compile-time error:
+-->
+
+ダングリング参照作りを試してみますが、コンパイラはこれをコンパイルエラーで阻止します:
+
+<!--
+<span class="filename">Filename: src/main.rs</span>
+-->
+
+<span class="filename">ファイル名: src/main.rs</span>
+
+```rust,ignore
+fn main() {
+    let reference_to_nothing = dangle();
+}
+
+fn dangle() -> &String {
+    let s = String::from("hello");
+
+    &s
+}
+```
+
+<!--
+Here’s the error:
+-->
+
+こちらがエラーです:
+
+```text
+error[E0106]: missing lifetime specifier
+(エラー: ライフタイム指定子がありません)
+ --> main.rs:5:16
+  |
+5 | fn dangle() -> &String {
+  |                ^ expected lifetime parameter
+  |
+  = help: this function's return type contains a borrowed value, but there is no
+    value for it to be borrowed from
+    (助言: この関数の戻り値型は、借用した値を含んでいますが、借用される値がどこにもありません)
+  = help: consider giving it a 'static lifetime
+  ('staticライフタイムを与えることを考慮してみてください)
+```
+
+<!--
+This error message refers to a feature we haven’t covered yet: *lifetimes*. We'll
+discuss lifetimes in detail in Chapter 10. But, if you disregard the parts
+about lifetimes, the message does contain the key to why this code is a problem:
+-->
+
+このエラーメッセージは、まだ講義していない機能について触れています: *ライフタイム*です。
+ライフタイムについては第10章で詳しく議論しますが、ライフタイムに関する部分を無視すれば、
+このメッセージは、確かにこのコードが問題になる理由に関する鍵を握っています:
+
+```text
+this function's return type contains a borrowed value, but there is no value
+for it to be borrowed from.
+```
+
+<!--
+Let’s take a closer look at exactly what’s happening at each stage of our
+`dangle` code:
+-->
+
+`dangle`コードの各段階で一体何が起きているのかを詳しく見ていきましょう:
+
+<!--
+```rust,ignore
+fn dangle() -> &String { // dangle returns a reference to a String
+-->
+
+<!--
+let s = String::from("hello"); // s is a new String
+-->
+
+<!--
+&s // we return a reference to the String, s
+} // Here, s goes out of scope, and is dropped. Its memory goes away.
+// Danger!
+```
+-->
+
+<!--
+<span class="filename">Filename: src/main.rs</span>
+-->
+
+<span class="filename">ファイル名: src/main.rs</span>
+
+```rust,ignore
+fn dangle() -> &String { // dangleはStringへの参照を返す
+
+    let s = String::from("hello"); // sは新しいString
+
+    &s // String sへの参照を返す
+} // ここで、sはスコープを抜け、ドロップされる。そのメモリは消される。
+  // 危険だ
+```
+
+<!--
+Because `s` is created inside `dangle`, when the code of `dangle` is finished,
+`s` will be deallocated. But we tried to return a reference to it. That means
+this reference would be pointing to an invalid `String`. That’s no good! Rust
+won’t let us do this.
+-->
+
+`s`は、`dangle`内で生成されているので、`dangle`のコードが終わったら、`s`は解放されてしまいますが、
+そこへの参照を返そうとしました。つまり、この参照は無効な`String`を指していると思われるのです。
+よくないことです！コンパイラは、これを阻止してくれるのです。
+
+<!--
+The solution here is to return the `String` directly:
+-->
+
+ここでの解決策は、`String`を直接返すことです:
+
+```rust
+fn no_dangle() -> String {
+    let s = String::from("hello");
+
+    s
+}
+```
+
+<!--
+This works without any problems. Ownership is moved out, and nothing is
+deallocated.
+-->
+
+これは何の問題もなく動きます。所有権はムーブされ、何も解放されることはありません。
+
+<!--
+### The Rules of References
+-->
+
+### 参照の規則
+
+<!--
+Let’s recap what we’ve discussed about references:
+-->
+
+参照について議論したことを再確認しましょう:
+
+<!--
+* At any given time, you can have *either* one mutable reference *or* any
+number of immutable references.
+* References must always be valid.
+-->
+
+* 任意のタイミングで、一つの可変参照*か*不変な参照いくつでもの*どちらか*を行える。
+* 参照は常に有効でなければならない。
+
+<!--
+Next, we’ll look at a different kind of reference: slices.
+-->
+
+次は、違う種類の参照を見ていきましょう: スライスです。
 
 [expect]
-[book-ja/src/ch04-01-what-is-ownership.md at master-ja · rust-lang-ja/book-ja](https://github.com/rust-lang-ja/book-ja/blob/master-ja/src/ch04-01-what-is-ownership.md)
+<!--
+## References and Borrowing
+-->
 
-## 所有権とは？
+## 参照と借用
 
-[](https://github.com/rust-lang-ja/book-ja/blob/master-ja/src/ch04-01-what-is-ownership.md#所有権とは)
+<!--
+The issue with the tuple code in Listing 4-5 is that we have to return the
+`String` to the calling function so we can still use the `String` after the
+call to `calculate_length`, because the `String` was moved into
+`calculate_length`.
+-->
 
-Rustの中心的な機能は、_所有権_です。この機能は、説明するのは簡単なのですが、言語の残りの機能全てにかかるほど 深い裏の意味を含んでいるのです。
+リスト 4-5 のタプルコードの問題は、`String`型を呼び出し元の関数に戻さないと、`calculate_length`を呼び出した後に、
+`String`オブジェクトが使えなくなることであり、これは`String`オブジェクトが`calculate_length`にムーブされてしまうためでした。
 
-全てのプログラムは、実行中にコンピュータのメモリの使用方法を管理する必要があります。プログラムが動作するにつれて、 定期的に使用されていないメモリを検索するガベージコレクションを持つ言語もありますが、他の言語では、 プログラマが明示的にメモリを確保したり、解放したりしなければなりません。Rustでは第3の選択肢を取っています: メモリは、コンパイラがコンパイル時にチェックする一定の規則とともに所有権システムを通じて管理されています。 どの所有権機能も、実行中にプログラムの動作を遅くすることはありません。
+<!--
+Here is how you would define and use a `calculate_length` function that has a
+reference to an object as a parameter instead of taking ownership of the
+value:
+-->
 
-所有権は多くのプログラマにとって新しい概念なので、慣れるまでに時間がかかります。 嬉しいことに、Rustと、所有権システムの規則の経験を積むと、より自然に安全かつ効率的なコードを構築できるようになります。 その調子でいきましょう！
+ここで、値の所有権をもらう代わりに引数としてオブジェクトへの参照を取る`calculate_length`関数を定義し、
+使う方法を見てみましょう:
 
-所有権を理解した時、Rustを際立たせる機能の理解に対する強固な礎を得ることになるでしょう。この章では、 非常に一般的なデータ構造に着目した例を取り扱うことで所有権を学んでいきます: 文字列です。
+<!--
+<span class="filename">Filename: src/main.rs</span>
+-->
 
-> ### スタックとヒープ
->
-> [](https://github.com/rust-lang-ja/book-ja/blob/master-ja/src/ch04-01-what-is-ownership.md#スタックとヒープ)
+<span class="filename">ファイル名: src/main.rs</span>
 
-> 多くのプログラミング言語において、スタックとヒープについて考える機会はそう多くないでしょう。 しかし、Rustのようなシステムプログラミング言語においては、値がスタックに積まれるかヒープに置かれるかは、 言語の振る舞い方や、特定の決断を下す理由などに影響以上のものを与えるのです。 この章の後半でスタックとヒープを交えて所有権の一部が解説されるので、ここでちょっと予行演習をしておきましょう。
->
-> スタックもヒープも、実行時にコードが使用できるメモリの一部になりますが、異なる手段で構成されています。 スタックは、得た順番に値を並べ、逆の順で値を取り除いていきます。これは、 _last in, first out_(`訳注`: あえて日本語にするなら、「最後に入れたものが最初に出てくる」といったところでしょうか)と呼ばれます。 お皿の山を思い浮かべてください: お皿を追加する時には、山の一番上に置き、お皿が必要になったら、一番上から1枚を取り去りますよね。 途中や一番下に追加したり、取り除いたりすることもできません。データを追加することは、 _スタックにpushする_といい、データを取り除くことは、_スタックからpopする_と表現します(`訳注`: 日本語では単純に英語をそのまま活用してプッシュ、ポップと表現するでしょう)。
->
-> データへのアクセス方法のおかげで、スタックは高速です: 新しいデータを置いたり、 データを取得する場所を探す必要が絶対にないわけです。というのも、その場所は常に一番上だからですね。 スタックを高速にする特性は他にもあり、それはスタック上のデータは全て既知の固定サイズでなければならないということです。
->
-> コンパイル時にサイズがわからなかったり、サイズが可変のデータについては、代わりにヒープに格納することができます。 ヒープは、もっとごちゃごちゃしています: ヒープにデータを置く時、あるサイズのスペースを求めます。 OSはヒープ上に十分な大きさの空の領域を見つけ、使用中にし、_ポインタ_を返します。ポインタとは、その場所へのアドレスです。 この過程は、_ヒープに領域を確保する(allocating on the heap)_と呼ばれ、時としてそのフレーズを単に_allocateする_などと省略したりします。 (`訳注`: こちらもこなれた日本語訳はないでしょう。allocateは「メモリを確保する」と訳したいところですが) スタックに値を積むことは、メモリ確保とは考えられません。ポインタは、既知の固定サイズなので、 スタックに保管することができますが、実データが必要になったら、ポインタを追いかける必要があります。
->
-> レストランで席を確保することを考えましょう。入店したら、グループの人数を告げ、 店員が全員座れる空いている席を探し、そこまで誘導します。もしグループの誰かが遅れて来るのなら、 着いた席の場所を尋ねてあなたを発見することができます。
->
-> ヒープへのデータアクセスは、スタックのデータへのアクセスよりも低速です。 ポインタを追って目的の場所に到達しなければならないからです。現代のプロセッサは、メモリをあちこち行き来しなければ、 より速くなります。似た例えを続けましょう。レストランで多くのテーブルから注文を受ける給仕人を考えましょう。最も効率的なのは、 次のテーブルに移らずに、一つのテーブルで全部の注文を受け付けてしまうことです。テーブルAで注文を受け、 それからテーブルBの注文、さらにまたA、それからまたBと渡り歩くのは、かなり低速な過程になってしまうでしょう。 同じ意味で、プロセッサは、 データが隔離されている(ヒープではそうなっている可能性がある)よりも近くにある(スタックではこうなる)ほうが、 仕事をうまくこなせるのです。ヒープに大きな領域を確保する行為も時間がかかることがあります。
->
-> コードが関数を呼び出すと、関数に渡された値(ヒープのデータへのポインタも含まれる可能性あり)と、 関数のローカル変数がスタックに載ります。関数の実行が終了すると、それらの値はスタックから取り除かれます。
->
-> どの部分のコードがどのヒープ上のデータを使用しているか把握すること、ヒープ上の重複するデータを最小化すること、 メモリ不足にならないようにヒープ上の未使用のデータを掃除することは全て、所有権が解決する問題です。 一度所有権を理解したら、あまり頻繁にスタックとヒープに関して考える必要はなくなるでしょうが、 ヒープデータを管理することが所有権の存在する理由だと知っていると、所有権がありのままで動作する理由を 説明するのに役立つこともあります。
-
-### 所有権規則
-
-[](https://github.com/rust-lang-ja/book-ja/blob/master-ja/src/ch04-01-what-is-ownership.md#所有権規則)
-
-まず、所有権のルールについて見ていきましょう。 この規則を具体化する例を扱っていく間もこれらのルールを肝に銘じておいてください:
-
-- Rustの各値は、_所有者_と呼ばれる変数と対応している。
-- いかなる時も所有者は一つである。
-- 所有者がスコープから外れたら、値は破棄される。
-
-### 変数スコープ
-
-[](https://github.com/rust-lang-ja/book-ja/blob/master-ja/src/ch04-01-what-is-ownership.md#変数スコープ)
-
-第2章で、Rustプログラムの例はすでに見ています。もう基本的な記法は通り過ぎたので、 `fn main() {`というコードはもう例に含みません。従って、例をなぞっているなら、 これからの例は`main`関数に手動で入れ込まなければいけなくなるでしょう。結果的に、例は少々簡潔になり、 定型コードよりも具体的な詳細に集中しやすくなります。
-
-所有権の最初の例として、何らかの変数の_スコープ_について見ていきましょう。スコープとは、 要素が有効になるプログラム内の範囲のことです。以下のような変数があるとしましょう:
-
-let s = "hello";
-
-変数`s`は、文字列リテラルを参照し、ここでは、文字列の値はプログラムのテキストとしてハードコードされています。 この変数は、宣言された地点から、現在の_スコープ_の終わりまで有効になります。リスト4-1には、 変数`s`が有効な場所に関する注釈がコメントで付記されています。
-
-{                      // sは、ここでは有効ではない。まだ宣言されていない
-    let s = "hello";   // sは、ここから有効になる
-
-    // sで作業をする
-}                      // このスコープは終わり。もうsは有効ではない
-
-リスト4-1: 変数と有効なスコープ
-
-言い換えると、ここまでに重要な点は二つあります:
-
-- `s`が_スコープに入る_と、有効になる
-- _スコープを抜ける_まで、有効なまま
-
-ここで、スコープと変数が有効になる期間の関係は、他の言語に類似しています。さて、この理解のもとに、 `String`型を導入して構築していきましょう。
-
-### `String`型
-
-[](https://github.com/rust-lang-ja/book-ja/blob/master-ja/src/ch04-01-what-is-ownership.md#string型)
-
-所有権の規則を具体化するには、第3章の「データ型」節で講義したものよりも、より複雑なデータ型が必要になります。 以前講義した型は全てスタックに保管され、スコープが終わるとスタックから取り除かれますが、 ヒープに確保されるデータ型を観察して、 コンパイラがどうそのデータを掃除すべきタイミングを把握しているかを掘り下げていきたいと思います。
-
-ここでは、例として`String`型を使用し、`String`型の所有権にまつわる部分に着目しましょう。 また、この観点は、標準ライブラリや自分で生成する他の複雑なデータ型にも適用されます。 `String`型については、第8章でより深く議論します。
-
-既に文字列リテラルは見かけましたね。文字列リテラルでは、文字列の値はプログラムにハードコードされます。 文字列リテラルは便利ですが、テキストを使いたいかもしれない場面全てに最適なわけではありません。一因は、 文字列リテラルが不変であることに起因します。別の原因は、コードを書く際に、全ての文字列値が判明するわけではないからです: 例えば、ユーザ入力を受け付け、それを保持したいとしたらどうでしょうか？このような場面用に、Rustには、 2種類目の文字列型、`String`型があります。この型はヒープにメモリを確保するので、 コンパイル時にはサイズが不明なテキストも保持することができるのです。`from`関数を使用して、 文字列リテラルから`String`型を生成できます。以下のように:
-
-let s = String::from("hello");
-
-この二重コロンは、`string_from`などの名前を使うのではなく、 `String`型直下の`from`関数を特定する働きをする演算子です。この記法について詳しくは、 第5章の「メソッド記法」節と、第7章の「モジュール定義」でモジュールを使った名前空間分けについて話をするときに議論します。
-
-この種の文字列は、可変化することが_できます_:
-
-let mut s = String::from("hello");
-
-s.push_str(", world!"); // push_str()関数は、リテラルをStringに付け加える
-
-println!("{}", s); // これは\`hello, world!\`と出力する
-
-では、ここでの違いは何でしょうか？なぜ、`String`型は可変化できるのに、リテラルはできないのでしょうか？ 違いは、これら二つの型がメモリを扱う方法にあります。
-
-### メモリと確保
-
-[](https://github.com/rust-lang-ja/book-ja/blob/master-ja/src/ch04-01-what-is-ownership.md#メモリと確保)
-
-文字列リテラルの場合、中身はコンパイル時に判明しているので、テキストは最終的なバイナリファイルに直接ハードコードされます。 このため、文字列リテラルは、高速で効率的になるのです。しかし、これらの特性は、 その文字列リテラルの不変性にのみ端を発するものです。残念なことに、コンパイル時にサイズが不明だったり、 プログラム実行に合わせてサイズが可変なテキスト片用に一塊のメモリをバイナリに確保しておくことは不可能です。
-
-`String`型では、可変かつ伸長可能なテキスト破片をサポートするために、コンパイル時には不明な量のメモリを ヒープに確保して内容を保持します。つまり:
-
-- メモリは、実行時にOSに要求される。
-- `String`型を使用し終わったら、OSにこのメモリを返還する方法が必要である。
-
-この最初の部分は、既にしています: `String::from`関数を呼んだら、その実装が必要なメモリを要求するのです。 これは、プログラミング言語において、極めて普遍的です。
-
-しかしながら、2番目の部分は異なります。_ガベージコレクタ_(GC)付きの言語では、GCがこれ以上、 使用されないメモリを検知して片付けるため、プログラマは、そのことを考慮する必要はありません。 GCがないなら、メモリがもう使用されないことを見計らって、明示的に返還するコードを呼び出すのは、 プログラマの責任になります。ちょうど要求の際にしたようにですね。これを正確にすることは、 歴史的にも難しいプログラミング問題の一つであり続けています。もし、忘れていたら、メモリを無駄にします。 タイミングが早すぎたら、無効な変数を作ってしまいます。2回解放してしまっても、バグになるわけです。 `allocate`と`free`は完璧に1対1対応にしなければならないのです。
-
-Rustは、異なる道を歩んでいます: ひとたび、メモリを所有している変数がスコープを抜けたら、 メモリは自動的に返還されます。こちらの例は、 リスト4-1のスコープ例を文字列リテラルから`String`型を使うものに変更したバージョンになります:
-
-{
-    let s = String::from("hello"); // sはここから有効になる
-
-    // sで作業をする
-}                                  // このスコープはここでおしまい。sは
-                                   // もう有効ではない
-
-`String`型が必要とするメモリをOSに返還することが自然な地点があります: `s`変数がスコープを抜ける時です。 変数がスコープを抜ける時、Rustは特別な関数を呼んでくれます。この関数は、`drop`と呼ばれ、 ここに`String`型の書き手はメモリを返還するコードを配置することができます。Rustは、閉じ波括弧で自動的に`drop`関数を呼び出します。
-
-> 注釈: C++では、要素の生存期間の終了地点でリソースを解放するこのパターンを時に、 _RAII_(Resource Aquisition Is Initialization: リソースの獲得は、初期化である)と呼んだりします。 Rustの`drop`関数は、あなたがRAIIパターンを使ったことがあれば、馴染み深いものでしょう。
-
-このパターンは、Rustコードの書かれ方に甚大な影響をもたらします。現状は簡単そうに見えるかもしれませんが、 ヒープ上に確保されたデータを複数の変数に使用させるようなもっと複雑な場面では、コードの振る舞いは、 予期しないものになる可能性もあります。これから、そのような場面を掘り下げてみましょう。
-
-#### 変数とデータの相互作用法: ムーブ
-
-[](https://github.com/rust-lang-ja/book-ja/blob/master-ja/src/ch04-01-what-is-ownership.md#変数とデータの相互作用法-ムーブ)
-
-Rustにおいては、複数の変数が同じデータに対して異なる手段で相互作用することができます。 整数を使用したリスト4-2の例を見てみましょう。
-
-let x = 5;
-let y = x;
-
-リスト4-2: 変数`x`の整数値を`y`に代入する
-
-もしかしたら、何をしているのか予想することができるでしょう: 「値`5`を`x`に束縛する; それから`x`の値をコピーして`y`に束縛する。」これで、 二つの変数(`x`と`y`)が存在し、両方、値は`5`になりました。これは確かに起こっている現象を説明しています。 なぜなら、整数は既知の固定サイズの単純な値で、これら二つの`5`という値は、スタックに積まれるからです。
-
-では、`String`バージョンを見ていきましょう:
-
-let s1 = String::from("hello");
-let s2 = s1;
-
-このコードは先ほどのコードに酷似していますので、動作方法も同じだと思い込んでしまうかもしれません: 要するに、2行目で`s1`の値をコピーし、`s2`に束縛するということです。ところが、 これは全く起こることを言い当てていません。
-
-図4-1を見て、ベールの下で`String`に何が起きているかを確かめてください。 `String`型は、左側に示されているように、3つの部品でできています: 文字列の中身を保持するメモリへのポインタと長さ、そして、許容量です。この種のデータは、スタックに保持されます。 右側には、中身を保持したヒープ上のメモリがあります。
-
-[![メモリ上の文字列](https://github.com/rust-lang-ja/book-ja/raw/master-ja/src/img/trpl04-01.svg)](https://github.com/rust-lang-ja/book-ja/blob/master-ja/src/img/trpl04-01.svg)
-
-図4-1: `s1`に束縛された`"hello"`という値を保持する`String`のメモリ上の表現
-
-長さは、`String`型の中身が現在使用しているメモリ量をバイトで表したものです。許容量は、 `String`型がOSから受け取った全メモリ量をバイトで表したものです。長さと許容量の違いは問題になることですが、 この文脈では違うので、とりあえずは、許容量を無視しても構わないでしょう。
-
-`s1`を`s2`に代入すると、`String`型のデータがコピーされます。つまり、スタックにあるポインタ、長さ、 許容量をコピーするということです。ポインタが指すヒープ上のデータはコピーしません。言い換えると、 メモリ上のデータ表現は図4-2のようになるということです。
-
-[![同じ値を指すs1とs2](https://github.com/rust-lang-ja/book-ja/raw/master-ja/src/img/trpl04-02.svg)](https://github.com/rust-lang-ja/book-ja/blob/master-ja/src/img/trpl04-02.svg)
-
-図4-2: `s1`のポインタ、長さ、許容量のコピーを保持する変数`s2`のメモリ上での表現
-
-メモリ上の表現は、図4-3のようにはなり_ません_。これは、 Rustが代わりにヒープデータもコピーするという選択をしていた場合のメモリ表現ですね。Rustがこれをしていたら、 ヒープ上のデータが大きい時に`s2 = s1`という処理の実行時性能がとても悪くなっていた可能性があるでしょう。
-
-[![2箇所へのs1とs2](https://github.com/rust-lang-ja/book-ja/raw/master-ja/src/img/trpl04-03.svg)](https://github.com/rust-lang-ja/book-ja/blob/master-ja/src/img/trpl04-03.svg)
-
-図4-3: Rustがヒープデータもコピーしていた場合に`s2 = s1`という処理が行なった可能性のあること
-
-先ほど、変数がスコープを抜けたら、Rustは自動的に`drop`関数を呼び出し、 その変数が使っていたヒープメモリを片付けると述べました。しかし、図4-2は、 両方のデータポインタが同じ場所を指していることを示しています。これは問題です: `s2`と`s1`がスコープを抜けたら、 両方とも同じメモリを解放しようとします。これは_二重解放_エラーとして知られ、以前触れたメモリ安全性上のバグの一つになります。 メモリを2回解放することは、memory corruption (`訳注`: メモリの崩壊。意図せぬメモリの書き換え) につながり、 セキュリティ上の脆弱性を生む可能性があります。
-
-メモリ安全性を保証するために、Rustにおいてこの場面で起こることの詳細がもう一つあります。 確保されたメモリをコピーしようとする代わりに、コンパイラは、`s1`が最早有効ではないと考え、 故に`s1`がスコープを抜けた際に何も解放する必要がなくなるわけです。`s2`の生成後に`s1`を使用しようとしたら、 どうなるかを確認してみましょう。動かないでしょう:
-
-let s1 = String::from("hello");
-let s2 = s1;
-
-println!("{}, world!", s1);
-
-コンパイラが無効化された参照は使用させてくれないので、以下のようなエラーが出るでしょう:
-
-```
-error[E0382]: use of moved value: `s1`
-              (ムーブされた値の使用: `s1`)
- --> src/main.rs:5:28
-  |
-3 |     let s2 = s1;
-  |         -- value moved here
-4 |
-5 |     println!("{}, world!", s1);
-  |                            ^^ value used here after move
-  |                               (ムーブ後にここで使用されています)
-  |
-  = note: move occurs because `s1` has type `std::string::String`, which does
-  not implement the `Copy` trait
-    (注釈: ムーブが起きたのは、`s1`が`std::string::String`という
-    `Copy`トレイトを実装していない型だからです)
-```
-
-他の言語を触っている間に"shallow copy"と"deep copy"という用語を耳にしたことがあるなら、 データのコピーなしにポインタと長さ、許容量をコピーするという概念は、shallow copyのように思えるかもしれません。 ですが、コンパイラは最初の変数をも無効化するので、shallow copyと呼ばれる代わりに、 _ムーブ_として知られているわけです。この例では、`s1`は`s2`に_ムーブ_されたと表現するでしょう。 以上より、実際に起きることを図4-4に示してみました。
-
-[![s2にムーブされたs1](https://github.com/rust-lang-ja/book-ja/raw/master-ja/src/img/trpl04-04.svg)](https://github.com/rust-lang-ja/book-ja/blob/master-ja/src/img/trpl04-04.svg)
-
-図4-4: `s1`が無効化された後のメモリ表現
-
-これにて一件落着です。`s2`だけが有効なので、スコープを抜けたら、それだけがメモリを解放して、 終わりになります。
-
-付け加えると、これにより暗示される設計上の選択があります: Rustでは、 自動的にデータの"deep copy"が行われることは絶対にないわけです。それ故に、あらゆる_自動_コピーは、実行時性能の観点で言うと、 悪くないと考えてよいことになります。
-
-#### 変数とデータの相互作用法: クローン
-
-[](https://github.com/rust-lang-ja/book-ja/blob/master-ja/src/ch04-01-what-is-ownership.md#変数とデータの相互作用法-クローン)
-
-仮に、スタック上のデータだけでなく、_本当に_`String`型のヒープデータのdeep copyが必要ならば、 `clone`と呼ばれるよくあるメソッドを使うことができます。メソッド記法については第5章で議論しますが、 メソッドは多くのプログラミング言語に見られる機能なので、以前に見かけたこともあるんじゃないでしょうか。
-
-これは、`clone`メソッドの動作例です:
-
-let s1 = String::from("hello");
-let s2 = s1.clone();
-
-println!("s1 = {}, s2 = {}", s1, s2);
-
-これは問題なく動作し、図4-3で示した動作を明示的に生み出します。ここでは、 ヒープデータが_実際に_コピーされています。
-
-`clone`メソッドの呼び出しを見かけたら、何らかの任意のコードが実行され、その実行コストは高いと把握できます。 何か違うことが起こっているなと見た目でわかるわけです。
-
-#### スタックのみのデータ: コピー
-
-[](https://github.com/rust-lang-ja/book-ja/blob/master-ja/src/ch04-01-what-is-ownership.md#スタックのみのデータ-コピー)
-
-まだ話題にしていない別の問題があります。 この整数を使用したコードは、一部をリスト4-2で示しましたが、うまく動作する有効なものです:
-
-let x = 5;
-let y = x;
-
-println!("x = {}, y = {}", x, y);
-
-ですが、このコードは一見、今学んだことと矛盾しているように見えます: `clone`メソッドの呼び出しがないのに、`x`は有効で、`y`にムーブされませんでした。
-
-その理由は、整数のようなコンパイル時に既知のサイズを持つ型は、スタック上にすっぽり保持されるので、 実際の値をコピーするのも高速だからです。これは、変数`y`を生成した後にも`x`を無効化したくなる理由がないことを意味します。 換言すると、ここでは、shallow copyとdeep copyの違いがないことになり、 `clone`メソッドを呼び出しても、一般的なshallow copy以上のことをしなくなり、 そのまま放置しておけるということです。
-
-Rustには`Copy`トレイトと呼ばれる特別な注釈があり、 整数のようなスタックに保持される型に対して配置することができます(トレイトについては第10章でもっと詳しく話します)。 型が`Copy`トレイトに適合していれば、代入後も古い変数が使用可能になります。コンパイラは、 型やその一部分でも`Drop`トレイトを実装している場合、`Copy`トレイトによる注釈をさせてくれません。 型の値がスコープを外れた時に何か特別なことを起こす必要がある場合に、`Copy`注釈を追加すると、コンパイルエラーが出ます。 型に`Copy`注釈をつける方法について学ぶには、付録Cの「導出可能なトレイト」をご覧ください。
-
-では、どの型が`Copy`なのでしょうか？ある型について、ドキュメントをチェックすればいいのですが、 一般規則として、単純なスカラー値の集合は何でも`Copy`であり、メモリ確保が必要だったり、 何らかの形態のリソースだったりするものは`Copy`ではありません。ここに`Copy`の型の一部を並べておきます。
-
-- あらゆる整数型。`u32`など。
-- 論理値型である`bool`。`true`と`false`という値がある。
-- あらゆる浮動小数点型、`f64`など。
-- 文字型である`char`。
-- タプル。ただ、`Copy`の型だけを含む場合。例えば、`(i32, i32)`は`Copy`だが、 `(i32, String)`は違う。
-
-### 所有権と関数
-
-[](https://github.com/rust-lang-ja/book-ja/blob/master-ja/src/ch04-01-what-is-ownership.md#所有権と関数)
-
-意味論的に、関数に値を渡すことと、値を変数に代入することは似ています。関数に変数を渡すと、 代入のようにムーブやコピーされます。リスト4-3は変数がスコープに入ったり、 抜けたりする地点について注釈してある例です。
-
-ファイル名: src/main.rs
-
-fn main() {
-    let s = String::from("hello");  // sがスコープに入る
-
-    takes_ownership(s);             // sの値が関数にムーブされ...
-                                    // ... ここではもう有効ではない
-
-    let x = 5;                      // xがスコープに入る
-
-    makes_copy(x);                  // xも関数にムーブされるが、
-                                    // i32はCopyなので、この後にxを使っても
-                                    // 大丈夫
-
-} // ここでxがスコープを抜け、sもスコープを抜ける。ただし、sの値はムーブされているので、何も特別なことは起こらない。
-  //
-
-fn takes_ownership(some_string: String) { // some_stringがスコープに入る。
-    println!("{}", some_string);
-} // ここでsome_stringがスコープを抜け、\`drop\`が呼ばれる。後ろ盾してたメモリが解放される。
-  //
-
-fn makes_copy(some_integer: i32) { // some_integerがスコープに入る
-    println!("{}", some_integer);
-} // ここでsome_integerがスコープを抜ける。何も特別なことはない。
-
-リスト4-3: 所有権とスコープが注釈された関数群
-
-`takes_ownership`の呼び出し後に`s`を呼び出そうとすると、コンパイラは、コンパイルエラーを投げるでしょう。 これらの静的チェックにより、ミスを犯さないでいられます。`s`や`x`を使用するコードを`main`に追加してみて、 どこで使えて、そして、所有権規則により、どこで使えないかを確認してください。
-
-### 戻り値とスコープ
-
-[](https://github.com/rust-lang-ja/book-ja/blob/master-ja/src/ch04-01-what-is-ownership.md#戻り値とスコープ)
-
-値を返すことでも、所有権は移動します。リスト4-4は、リスト4-3と似た注釈のついた例です。
-
-ファイル名: src/main.rs
-
-fn main() {
-    let s1 = gives_ownership();         // gives_ownershipは、戻り値をs1に
-                                        // ムーブする
-
-    let s2 = String::from("hello");     // s2がスコープに入る
-
-    let s3 = takes\_and\_gives_back(s2);  // s2はtakes\_and\_gives_backにムーブされ
-                                        // 戻り値もs3にムーブされる
-} // ここで、s3はスコープを抜け、ドロップされる。s2もスコープを抜けるが、ムーブされているので、
-  // 何も起きない。s1もスコープを抜け、ドロップされる。
-
-fn gives_ownership() -\&gt; String {             // gives_ownershipは、戻り値を
-                                             // 呼び出した関数にムーブする
-
-    let some_string = String::from("hello"); // some_stringがスコープに入る
-
-    some_string                              // some_stringが返され、呼び出し元関数に
-                                             // ムーブされる
-}
-
-// takes\_and\_gives_backは、Stringを一つ受け取り、返す。
-fn takes\_and\_gives_back(a_string: String) -\&gt; String { // a_stringがスコープに入る。
-
-    a_string  // a_stringが返され、呼び出し元関数にムーブされる
-}
-
-リスト4-4: 戻り値の所有権を移動する
-
-変数の所有権は、毎回同じパターンを辿っています: 別の変数に値を代入すると、ムーブされます。 ヒープにデータを含む変数がスコープを抜けると、データが別の変数に所有されるようムーブされていない限り、 `drop`により片付けられるでしょう。
-
-所有権を取り、またその所有権を戻す、ということを全ての関数でしていたら、ちょっとめんどくさいですね。 関数に値は使わせるものの所有権を取らないようにさせるにはどうするべきでしょうか。 返したいと思うかもしれない関数本体で発生したあらゆるデータとともに、再利用したかったら、渡されたものをまた返さなきゃいけないのは、 非常に煩わしいことです。
-
-タプルで、複数の値を返すことは可能です。リスト4-5のようにですね。
-
-ファイル名: src/main.rs
-
+```rust
 fn main() {
     let s1 = String::from("hello");
 
-    let (s2, len) = calculate_length(s1);
+    let len = calculate_length(&s1);
 
-    //'{}'の長さは、{}です
-    println!("The length of '{}' is {}.", s2, len);
+    // '{}'の長さは、{}です
+    println!("The length of '{}' is {}.", s1, len);
 }
 
-fn calculate_length(s: String) -\&gt; (String, usize) {
-    let length = s.len(); // len()メソッドは、Stringの長さを返します
+fn calculate_length(s: &String) -> usize {
+    s.len()
+}
+```
 
-    (s, length)
+<!--
+First, notice that all the tuple code in the variable declaration and the
+function return value is gone. Second, note that we pass `&s1` into
+`calculate_length` and, in its definition, we take `&String` rather than
+`String`.
+-->
+
+まず、変数宣言と関数の戻り値にあったタプルコードは全てなくなったことに気付いてください。
+2 番目に、`&s1`を`calcuate_length`に渡し、その定義では、`String`型ではなく、`&String`を受け取っていることに注目してください。
+
+<!--
+These ampersands are *references*, and they allow you to refer to some value
+without taking ownership of it. Figure 4-5 shows a diagram.
+-->
+
+これらのアンド記号が参照であり、これのおかげで所有権をもらうことなく値を参照することができるのです。
+図 4-5 はその図解です。
+
+<!--
+<img alt="&String s pointing at String s1" src="img/trpl04-05.svg" class="center" />
+-->
+
+<img alt="文字列s1を指す&amp;String型のs" src="img/trpl04-05.svg" class="center" />
+
+<!--
+<span class="caption">Figure 4-5: A diagram of `&String s` pointing at `String
+s1`</span>
+-->
+
+<span class="caption">図 4-5: `String s1`を指す`&String s`の図表</span>
+
+<!--
+Note: The opposite of referencing by using `&` is *dereferencing*, which is
+accomplished with the dereference operator, `*`. We’ll see some uses of the
+dereference operator in Chapter 8 and discuss details of dereferencing in
+Chapter 15.
+-->
+
+> 注釈: `&`による参照の逆は、*参照外し*であり、参照外し演算子の`*`で達成できます。
+> 第 8 章で参照外し演算子の使用例を眺め、第 15 章で参照外しについて詳しく議論します。
+
+<!--
+Let’s take a closer look at the function call here:
+-->
+
+ここの関数呼び出しについて、もっと詳しく見てみましょう:
+
+```rust
+# fn calculate_length(s: &String) -> usize {
+#     s.len()
+# }
+let s1 = String::from("hello");
+
+let len = calculate_length(&s1);
+```
+
+<!--
+The `&s1` syntax lets us create a reference that *refers* to the value of `s1`
+but does not own it. Because it does not own it, the value it points to will
+not be dropped when the reference goes out of scope.
+-->
+
+この`&s1`という記法により、`s1`の値を*参照する*参照を生成することができますが、これを所有することはありません。
+所有してないということは、指している値は、参照がスコープを抜けてもドロップされないということです。
+
+<!--
+Likewise, the signature of the function uses `&` to indicate that the type of
+the parameter `s` is a reference. Let’s add some explanatory annotations:
+-->
+
+同様に、関数のシグニチャでも、`&`を使用して引数`s`の型が参照であることを示しています。
+説明的な注釈を加えてみましょう:
+
+<!--
+```rust
+fn calculate_length(s: &String) -> usize { // s is a reference to a String
+s.len()
+} // Here, s goes out of scope. But because it does not have ownership of what
+// it refers to, nothing happens.
+```
+-->
+
+```rust
+fn calculate_length(s: &String) -> usize { // sはStringへの参照
+    s.len()
+} // ここで、sはスコープ外になる。けど、参照しているものの所有権を持っているわけではないので
+  // 何も起こらない
+```
+
+<!--
+The scope in which the variable `s` is valid is the same as any function
+parameter's scope, but we don’t drop what the reference points to when it goes
+out of scope because we don’t have ownership. When functions have references as
+parameters instead of the actual values, we won’t need to return the values in
+order to give back ownership, since we never had ownership.
+-->
+
+変数`s`が有効なスコープは、あらゆる関数の引数のものと同じですが、所有権はないので、`s`がスコープを抜けても、
+参照が指しているものをドロップすることはありません。関数が実際の値の代わりに参照を引数に取ると、
+所有権をもらわないので、所有権を返す目的で値を返す必要はありません。
+
+<!--
+We call having references as function parameters *borrowing*. As in real life,
+if a person owns something, you can borrow it from them. When you’re done, you
+have to give it back.
+-->
+
+関数の引数に参照を取ることを*借用*と呼びます。現実生活のように、誰かが何かを所有していたら、
+それを借りることができます。用が済んだら、返さなきゃいけないわけです。
+
+<!--
+So what happens if we try to modify something we’re borrowing? Try the code in
+Listing 4-6. Spoiler alert: it doesn’t work!
+-->
+
+では、借用した何かを変更しようとしたら、どうなるのでしょうか？リスト 4-6 のコードを試してください。
+ネタバレ注意: 動きません！
+
+<!--
+<span class="filename">Filename: src/main.rs</span>
+-->
+
+<span class="filename">ファイル名: src/main.rs</span>
+
+```rust,ignore
+fn main() {
+    let s = String::from("hello");
+
+    change(&s);
 }
 
-リスト4-5: 引数の所有権を返す
+fn change(some_string: &String) {
+    some_string.push_str(", world");
+}
+```
 
-でも、これでは、大袈裟すぎますし、ありふれているはずの概念に対して、作業量が多すぎます。 私たちにとって幸運なことに、Rustにはこの概念に対する機能があり、_参照_と呼ばれます。
+<!--
+<span class="caption">Listing 4-6: Attempting to modify a borrowed value</span>
+-->
+
+<span class="caption">リスト 4-6: 借用した値を変更しようと試みる</span>
+
+<!--
+Here’s the error:
+-->
+
+これがエラーです:
+
+```text
+error[E0596]: cannot borrow immutable borrowed content `*some_string` as mutable
+(エラー: 不変な借用をした中身`*some_string`を可変で借用できません)
+ --> error.rs:8:5
+  |
+7 | fn change(some_string: &String) {
+  |                        ------- use `&mut String` here to make mutable
+8 |     some_string.push_str(", world");
+  |     ^^^^^^^^^^^ cannot borrow as mutable
+```
+
+<!--
+Just as variables are immutable by default, so are references. We’re not
+allowed to modify something we have a reference to.
+-->
+
+変数が標準で不変なのと全く同様に、参照も不変なのです。参照している何かを変更することは叶わないわけです。
+
+<!--
+### Mutable References
+-->
+
+### 可変な参照
+
+<!--
+We can fix the error in the code from Listing 4-6 with just a small tweak:
+-->
+
+一捻り加えるだけでリスト 4-6 のコードのエラーは解決します:
+
+<!--
+<span class="filename">Filename: src/main.rs</span>
+-->
+
+<span class="filename">ファイル名: src/main.rs</span>
+
+```rust
+fn main() {
+    let mut s = String::from("hello");
+
+    change(&mut s);
+}
+
+fn change(some_string: &mut String) {
+    some_string.push_str(", world");
+}
+```
+
+<!--
+First, we had to change `s` to be `mut`. Then we had to create a mutable
+reference with `&mut s` and accept a mutable reference with `some_string: &mut
+String`.
+-->
+
+始めに、`s`を`mut`に変えなければなりませんでした。そして、`&mut s`で可変な参照を生成し、
+`some_string: &mut String`で可変な参照を受け入れなければなりませんでした。
+
+<!--
+But mutable references have one big restriction: you can have only one mutable
+reference to a particular piece of data in a particular scope. This code will
+fail:
+-->
+
+ところが、可変な参照には大きな制約が一つあります: 特定のスコープで、ある特定のデータに対しては、
+一つしか可変な参照を持てないことです。こちらのコードは失敗します:
+
+<!--
+<span class="filename">Filename: src/main.rs</span>
+-->
+
+<span class="filename">ファイル名: src/main.rs</span>
+
+```rust,ignore
+    let mut s = String::from("hello");
+
+    let r1 = &mut s;
+    let r2 = &mut s;
+
+    println!("{}, {}", r1, r2);
+```
+
+<!--
+Here’s the error:
+-->
+
+これがエラーです:
+
+```text
+$ cargo run
+   Compiling ownership v0.1.0 (file:///projects/ownership)
+error[E0499]: cannot borrow `s` as mutable more than once at a time
+(エラー: 一度に`s`を可変として2回以上借用することはできません)
+ --> src/main.rs:5:14
+  |
+4 |     let r1 = &mut s;
+  |              ------ first mutable borrow occurs here
+  |                    (最初の可変な参照はここ)
+5 |     let r2 = &mut s;
+  |              ^^^^^^ second mutable borrow occurs here
+  |                    (二つ目の可変な参照はここ)
+6 |
+7 |     println!("{}, {}", r1, r2);
+  |                        -- first borrow later used here
+
+error: aborting due to previous error
+
+For more information about this error, try `rustc --explain E0499`.
+error: could not compile `ownership`
+
+To learn more, run the command again with --verbose.
+```
+
+<!--
+This restriction allows for mutation but in a very controlled fashion. It’s
+something that new Rustaceans struggle with, because most languages let you
+mutate whenever you’d like.
+-->
+
+この制約は、可変化を許可するものの、それを非常に統制の取れた形で行えます。これは、新たな Rustacean にとっては、
+壁です。なぜなら、多くの言語では、いつでも好きな時に可変化できるからです。
+
+<!--
+The benefit of having this restriction is that Rust can prevent data races at
+compile time. A *data race* is similar to a race condition and happens when
+these three behaviors occur:
+-->
+
+この制約がある利点は、コンパイラがコンパイル時にデータ競合を防ぐことができる点です。
+データ競合とは、競合条件と類似していて、これら 3 つの振る舞いが起きる時に発生します:
+
+<!--
+* Two or more pointers access the same data at the same time.
+* At least one of the pointers is being used to write to the data.
+* There’s no mechanism being used to synchronize access to the data.
+-->
+
+- 2 つ以上のポインタが同じデータに同時にアクセスする。
+- 少なくとも一つのポインタがデータに書き込みを行っている。
+- データへのアクセスを同期する機構が使用されていない。
+
+<!--
+Data races cause undefined behavior and can be difficult to diagnose and fix
+when you’re trying to track them down at runtime; Rust prevents this problem
+from happening because it won’t even compile code with data races!
+-->
+
+データ競合は未定義の振る舞いを引き起こし、実行時に追いかけようとした時に特定し解決するのが難しい問題です。
+しかし、Rust は、データ競合が起こるコードをコンパイルさえしないので、この問題が発生しないようにしてくれるわけです。
+
+<!--
+As always, we can use curly brackets to create a new scope, allowing for
+multiple mutable references, just not *simultaneous* ones:
+-->
+
+いつものように、波かっこを使って新しいスコープを生成し、*同時並行*なものでなく、複数の可変な参照を作ることができます。
+
+<!--
+```rust
+let mut s = String::from("hello");
+-->
+
+<!--
+{
+let r1 = &mut s;
+-->
+
+<!--
+} // r1 goes out of scope here, so we can make a new reference with no problems.
+-->
+
+<!--
+let r2 = &mut s;
+```
+-->
+
+```rust
+let mut s = String::from("hello");
+
+{
+    let r1 = &mut s;
+
+} // r1はここでスコープを抜けるので、問題なく新しい参照を作ることができる
+
+let r2 = &mut s;
+```
+
+<!--
+A similar rule exists for combining mutable and immutable references. This code
+results in an error:
+-->
+
+可変と不変な参照を組み合わせることに関しても、似たような規則が存在しています。このコードはエラーになります:
+
+<!--
+```rust,ignore
+let mut s = String::from("hello");
+-->
+
+<!--
+let r1 = &s; // no problem
+let r2 = &s; // no problem
+let r3 = &mut s; // BIG PROBLEM
+```
+-->
+
+```rust,ignore
+let mut s = String::from("hello");
+
+let r1 = &s; // 問題なし
+let r2 = &s; // 問題なし
+let r3 = &mut s; // 大問題！
+```
+
+<!--
+Here’s the error:
+-->
+
+これがエラーです:
+
+```text
+error[E0502]: cannot borrow `s` as mutable because it is also borrowed as
+immutable
+(エラー: `s`は不変で借用されているので、可変で借用できません)
+ --> borrow_thrice.rs:6:19
+  |
+4 |     let r1 = &s; // no problem
+  |               - immutable borrow occurs here
+5 |     let r2 = &s; // no problem
+6 |     let r3 = &mut s; // BIG PROBLEM
+  |                   ^ mutable borrow occurs here
+7 | }
+  | - immutable borrow ends here
+```
+
+<!--
+Whew! We *also* cannot have a mutable reference while we have an immutable one.
+Users of an immutable reference don’t expect the values to suddenly change out
+from under them! However, multiple immutable references are okay because no one
+who is just reading the data has the ability to affect anyone else’s reading of
+the data.
+-->
+
+ふう！*さらに*不変な参照をしている間は、可変な参照をすることはできません。不変参照の使用者は、
+それ以降に値が突然変わることなんて予想してません！しかしながら、複数の不変参照をすることは可能です。
+データを読み込んでいるだけの人に、他人がデータを読み込むことに対して影響を与える能力はないからです。
+
+<!--
+Even though these errors may be frustrating at times, remember that it’s the
+Rust compiler pointing out a potential bug early (at compile time rather than
+at runtime) and showing you exactly where the problem is. Then you don't have
+to track down why your data isn’t what you thought it was.
+-->
+
+これらのエラーは、時としてイライラするものではありますが、Rust コンパイラがバグの可能性を早期に指摘してくれ(それも実行時ではなくコンパイル時に)、
+問題の発生箇所をズバリ示してくれるのだと覚えておいてください。そうして想定通りにデータが変わらない理由を追いかける必要がなくなります。
+
+<!--
+### Dangling References
+-->
+
+### 宙に浮いた参照
+
+<!--
+In languages with pointers, it’s easy to erroneously create a *dangling
+pointer*, a pointer that references a location in memory that may have been
+given to someone else, by freeing some memory while preserving a pointer to
+that memory. In Rust, by contrast, the compiler guarantees that references will
+never be dangling references: if you have a reference to some data, the
+compiler will ensure that the data will not go out of scope before the
+reference to the data does.
+-->
+
+ポインタのある言語では、誤ってダングリングポインタを生成してしまいやすいです。ダングリングポインタとは、
+他人に渡されてしまった可能性のあるメモリを指すポインタのことであり、その箇所へのポインタを保持している間に、
+メモリを解放してしまうことで発生します。対照的に Rust では、コンパイラが、
+参照がダングリング参照に絶対ならないよう保証してくれます: つまり、何らかのデータへの参照があったら、
+コンパイラは参照がスコープを抜けるまで、データがスコープを抜けることがないよう確認してくれるわけです。
+
+<!--
+Let’s try to create a dangling reference, which Rust will prevent with a
+compile-time error:
+-->
+
+ダングリング参照作りを試してみますが、コンパイラはこれをコンパイルエラーで阻止します:
+
+<!--
+<span class="filename">Filename: src/main.rs</span>
+-->
+
+<span class="filename">ファイル名: src/main.rs</span>
+
+```rust,ignore
+fn main() {
+    let reference_to_nothing = dangle();
+}
+
+fn dangle() -> &String {
+    let s = String::from("hello");
+
+    &s
+}
+```
+
+<!--
+Here’s the error:
+-->
+
+こちらがエラーです:
+
+```text
+error[E0106]: missing lifetime specifier
+(エラー: ライフタイム指定子がありません)
+ --> main.rs:5:16
+  |
+5 | fn dangle() -> &String {
+  |                ^ expected lifetime parameter
+  |
+  = help: this function's return type contains a borrowed value, but there is no
+    value for it to be borrowed from
+    (助言: この関数の戻り値型は、借用した値を含んでいますが、借用される値がどこにもありません)
+  = help: consider giving it a 'static lifetime
+  ('staticライフタイムを与えることを考慮してみてください)
+```
+
+<!--
+This error message refers to a feature we haven’t covered yet: *lifetimes*. We'll
+discuss lifetimes in detail in Chapter 10. But, if you disregard the parts
+about lifetimes, the message does contain the key to why this code is a problem:
+-->
+
+このエラーメッセージは、まだ講義していない機能について触れています: *ライフタイム*です。
+ライフタイムについては第 10 章で詳しく議論しますが、ライフタイムに関する部分を無視すれば、
+このメッセージは、確かにこのコードが問題になる理由に関する鍵を握っています:
+
+```text
+this function's return type contains a borrowed value, but there is no value
+for it to be borrowed from.
+```
+
+<!--
+Let’s take a closer look at exactly what’s happening at each stage of our
+`dangle` code:
+-->
+
+`dangle`コードの各段階で一体何が起きているのかを詳しく見ていきましょう:
+
+<!--
+```rust,ignore
+fn dangle() -> &String { // dangle returns a reference to a String
+-->
+
+<!--
+let s = String::from("hello"); // s is a new String
+-->
+
+<!--
+&s // we return a reference to the String, s
+} // Here, s goes out of scope, and is dropped. Its memory goes away.
+// Danger!
+```
+-->
+
+<!--
+<span class="filename">Filename: src/main.rs</span>
+-->
+
+<span class="filename">ファイル名: src/main.rs</span>
+
+```rust,ignore
+fn dangle() -> &String { // dangleはStringへの参照を返す
+
+    let s = String::from("hello"); // sは新しいString
+
+    &s // String sへの参照を返す
+} // ここで、sはスコープを抜け、ドロップされる。そのメモリは消される。
+  // 危険だ
+```
+
+<!--
+Because `s` is created inside `dangle`, when the code of `dangle` is finished,
+`s` will be deallocated. But we tried to return a reference to it. That means
+this reference would be pointing to an invalid `String`. That’s no good! Rust
+won’t let us do this.
+-->
+
+`s`は、`dangle`内で生成されているので、`dangle`のコードが終わったら、`s`は解放されてしまいますが、
+そこへの参照を返そうとしました。つまり、この参照は無効な`String`を指していると思われるのです。
+よくないことです！コンパイラは、これを阻止してくれるのです。
+
+<!--
+The solution here is to return the `String` directly:
+-->
+
+ここでの解決策は、`String`を直接返すことです:
+
+```rust
+fn no_dangle() -> String {
+    let s = String::from("hello");
+
+    s
+}
+```
+
+<!--
+This works without any problems. Ownership is moved out, and nothing is
+deallocated.
+-->
+
+これは何の問題もなく動きます。所有権はムーブされ、何も解放されることはありません。
+
+<!--
+### The Rules of References
+-->
+
+### 参照の規則
+
+<!--
+Let’s recap what we’ve discussed about references:
+-->
+
+参照について議論したことを再確認しましょう:
+
+<!--
+* At any given time, you can have *either* one mutable reference *or* any
+number of immutable references.
+* References must always be valid.
+-->
+
+- 任意のタイミングで、一つの可変参照*か*不変な参照いくつでもの*どちらか*を行える。
+- 参照は常に有効でなければならない。
+
+<!--
+Next, we’ll look at a different kind of reference: slices.
+-->
+
+次は、違う種類の参照を見ていきましょう: スライスです。
