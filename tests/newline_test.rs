@@ -1,5 +1,5 @@
-use dprint_plugin_markdown::configuration::*;
-use dprint_plugin_markdown::*;
+use dprint_plugin_markdown_ja::configuration::*;
+use dprint_plugin_markdown_ja::*;
 
 #[test]
 fn test_issue22_with_carriage_return_line_feeds() {

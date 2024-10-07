@@ -10,7 +10,7 @@ use super::*;
 /// # Example
 ///
 /// ```
-/// use dprint_plugin_markdown::configuration::*;
+/// use dprint_plugin_markdown_ja::configuration::*;
 ///
 /// let config = ConfigurationBuilder::new()
 ///     .line_width(80)
