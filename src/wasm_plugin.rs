@@ -34,7 +34,7 @@ impl SyncPluginHandler<Configuration> for MarkdownPluginHandler {
       info: PluginInfo {
         name: env!("CARGO_PKG_NAME").to_string(),
         version: version.clone(),
-        config_key: "markdown".to_string(),
+        config_key: "markdownJa".to_string(),
         help_url: "https://dprint.dev/plugins/markdown".to_string(),
         config_schema_url: format!(
           "https://plugins.dprint.dev/dprint/dprint-plugin-markdown/{}/schema.json",
