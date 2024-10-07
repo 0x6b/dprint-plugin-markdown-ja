@@ -492,10 +492,12 @@ fn gen_str(text: &str, context: &mut Context) -> PrintItems {
         if self.context.configuration.text_wrap == TextWrap::Maintain && character == '\n' {
           self.newline();
         } else {
-          self.space_or_newline();
+          self.space_or_newline_if_needed(character);
         }
         return;
       }
+
+      self.space_or_newline_if_needed(character);
 
       if let Some(current_word) = self.current_word.as_mut() {
         current_word.push(character);
@@ -503,6 +505,14 @@ fn gen_str(text: &str, context: &mut Context) -> PrintItems {
         let mut text = String::new();
         text.push(character);
         self.current_word = Some(text);
+      }
+    }
+
+    fn space_or_newline_if_needed(&mut self, character: char) {
+      if let Some(current_word) = self.current_word.as_ref() {
+        if should_add_space_between_chars(current_word.as_str().chars().last().unwrap_or_default(), character) {
+          self.space_or_newline();
+        }
       }
     }
 
@@ -1100,4 +1110,86 @@ fn is_all_ones_list(list: &List, context: &Context) -> bool {
     let text = list.children.get(1).unwrap().text(context).trim();
     text.starts_with("1.") || text.starts_with("1)")
   }
+}
+
+/// Determine whether whitespace should be added between two characters.
+fn should_add_space_between_chars(prev: char, next: char) -> bool {
+  let prev_is_japanese = is_japanese(prev);
+  let next_is_japanese = is_japanese(next);
+
+  if is_allowed(prev, next) {
+    return false;
+  }
+
+  if prev == ' ' && !next_is_japanese {
+    return true;
+  }
+
+  if !prev_is_japanese && next == ' ' {
+    return true;
+  }
+
+  if (prev_is_japanese && !next_is_japanese) || (!prev_is_japanese && next_is_japanese) {
+    return true;
+  }
+
+  false
+}
+
+/// Determine whether a character is a Japanese character.
+#[inline]
+fn is_japanese(character: char) -> bool {
+  ('\u{3041}'..='\u{3096}').contains(&character) || ('\u{3099}'..='\u{309F}').contains(&character) // Hiragana: https://www.unicode.org/charts/PDF/U3040.pdf
+      || ('\u{1B100}'..='\u{1B12F}').contains(&character) // Kana Extended-A: https://www.unicode.org/charts/PDF/U1B100.pdf
+      || ('\u{1AFF0}'..='\u{1AFFF}').contains(&character) // Kana Extended-B: https://www.unicode.org/charts/PDF/U1AFF0.pdf
+      || ('\u{1B000}'..='\u{1B0FF}').contains(&character) // Kana Supplement: https://www.unicode.org/charts/PDF/U1B000.pdf
+      || ('\u{1B130}'..='\u{1B16F}').contains(&character) // Small Kana Extension: https://www.unicode.org/charts/PDF/U1B130.pdf
+      || ('\u{30A0}'..='\u{30FF}').contains(&character) // Katakana: https://www.unicode.org/charts/PDF/U30A0.pdf
+      || ('\u{4E00}'..='\u{9FFF}').contains(&character) // CJK Unified Ideographs: https://www.unicode.org/charts/PDF/U4E00.pdf
+      || ('\u{3400}'..='\u{4DBF}').contains(&character) // CJK Unified Ideographs Extension A: https://www.unicode.org/charts/PDF/U3400.pdf
+      || ('\u{20000}'..='\u{2A6DF}').contains(&character) // CJK Unified Ideographs Extension B: https://www.unicode.org/charts/PDF/U20000.pdf
+      || ('\u{2A700}'..='\u{2B739}').contains(&character) // CJK Unified Ideographs Extension C: https://www.unicode.org/charts/PDF/U2A700.pdf
+      || ('\u{2B740}'..='\u{2B81D}').contains(&character) // CJK Unified Ideographs Extension D: https://www.unicode.org/charts/PDF/U2B740.pdf
+      || ('\u{2B820}'..='\u{2CEA1}').contains(&character) // CJK Unified Ideographs Extension E: https://www.unicode.org/charts/PDF/U2B820.pdf
+      || ('\u{2CEB0}'..='\u{2EBE0}').contains(&character) // CJK Unified Ideographs Extension F: https://www.unicode.org/charts/PDF/U2CEB0.pdf
+      || ('\u{30000}'..='\u{3134A}').contains(&character) // CJK Unified Ideographs Extension G: https://www.unicode.org/charts/PDF/U30000.pdf
+      || ('\u{31350}'..='\u{323AF}').contains(&character) // CJK Unified Ideographs Extension H: https://www.unicode.org/charts/PDF/U31350.pdf
+      || ('\u{2EBF0}'..='\u{2EE5D}').contains(&character) // CJK Unified Ideographs Extension H: https://www.unicode.org/charts/PDF/U2EBF0.pdf
+      || ('\u{F900}'..='\u{FAFF}').contains(&character) // CJK Compatibility Ideographs: https://www.unicode.org/charts/PDF/UF900.pdf
+      || ('\u{2F800}'..='\u{2FA1F}').contains(&character) // CJK Compatibility Ideographs Supplement: https://www.unicode.org/charts/PDF/U2F800.pdf
+    || char_is_cjk_symbols_and_punctuation(character)
+}
+
+/// Determine whether a character is in the allowed not to have a space in-between.
+#[inline]
+fn is_allowed(prev: char, next: char) -> bool {
+  match (is_japanese(prev), is_japanese(next), prev, next) {
+    (true, true, _, _) => true,
+    (true, _, _, '(') => true,
+    (true, _, _, ')') => true,
+    (_, true, '(', _) => true,
+    (_, true, ')', _) => true,
+    (true, _, _, ':') => true,
+    (true, _, _, '/') => true,
+    (_, true, '/', _) => true,
+    (true, _, _, '_') => true,
+    (_, true, '_', _) => true,
+    (true, _, _, '`') => true,
+    (_, true, '`', _) => true,
+    (true, _, _, '*') => true,
+    (_, true, '*', _) => true,
+    (true, _, _, '~') => true,
+    (_, true, '~', _) => true,
+    (_, false, _, _) if char_is_cjk_symbols_and_punctuation(prev) => true,
+    (false, _, _, _) if char_is_cjk_symbols_and_punctuation(next) => true,
+    _ => false,
+  }
+}
+
+/// Determine whether a character is a CJK symbols and punctuation character.
+#[inline]
+pub fn char_is_cjk_symbols_and_punctuation(character: char) -> bool {
+  ('\u{3000}'..='\u{303F}').contains(&character) // CJK Symbols and Punctuation: https://www.unicode.org/charts/PDF/U3000.pdf
+  || ('\u{FF01}'..='\u{FF60}').contains(&character) // Fullwidth Forms: https://www.unicode.org/charts/PDF/UFF00.pdf
+  || character == '\u{30fb}' // Katakana Middle Dot: https://www.unicode.org/charts/PDF/U30A0.pdf
 }
