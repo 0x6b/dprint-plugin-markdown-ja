@@ -488,6 +488,13 @@ fn gen_str(text: &str, context: &mut Context) -> PrintItems {
     }
 
     pub fn add_char(&mut self, character: char) {
+      let character = match character {
+        '　' => ' ',
+        '\u{FF02}'..='\u{FF09}' | '\u{FF0C}' | '\u{FF0E}'..='\u{FF1E}' | '\u{FF20}'..='\u{FF3A}' |
+        '\u{FF3C}' | '\u{FF3E}' | '\u{FF40}'..='\u{FF5D}' => char::from_u32(character as u32 - 0xFEE0).unwrap_or(character),
+        _ => character,
+      };
+
       if character == '\n' || character == ' ' {
         if self.context.configuration.text_wrap == TextWrap::Maintain && character == '\n' {
           self.newline();

@@ -2,7 +2,7 @@
 
 Opinionated and hacky Markdown formatter for [dprint](https://dprint.dev/) that follows Japanese-specific rules, based on the [dprint/dprint-plugin-markdown v0.17.8](https://github.com/dprint/dprint-plugin-markdown/releases/tag/0.17.8).
 
-## Feature
+## Features
 
 The plugin will insert a space between a Japanese character and a non-Japanese character, except in the following opinionated rules:
 
@@ -10,7 +10,11 @@ The plugin will insert a space between a Japanese character and a non-Japanese c
 - The previous character is one of ``()*/_`~``, and the current character is Japanese.
 - Either the previous or current character is a Japanese symbol or punctuation mark.
 
-See [Text_Japanese.txt](tests/specs/Text/Text_Japanese.txt) for how the plugin will work.
+The plugin will also replace the following characters with their half-width counterparts:
+
+- `＂＃＄％＆＇（），．／０１２３４５６７８９：；＜＝＞＠ＡＢＣＤＥＦＧＨＩＪＫＬＭＮＯＰＱＲＳＴＵＶＷＸＹＺ＼＾｀ａｂｃｄｅｆｇｈｉｊｋｌｍｎｏｐｑｒｓｔｕｖｗｘｙｚ｛｜｝` and full-width whitespace `　`.
+
+See [Text_Japanese.txt](tests/specs/Text/Text_Japanese.txt) and [Text_Japanese_Zenkaku.txt](tests/specs/Text/Text_Japanese_Zenkaku.txt) for how the plugin will work.
 
 Please note that inserting a space in such a way is a controversial topic. See [Do not insert whitespaces between latin and cj letters · Issue #6385 · prettier/prettier](https://github.com/prettier/prettier/issues/6385) for the discussion in the context of Prettier.
 
