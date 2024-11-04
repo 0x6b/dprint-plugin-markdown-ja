@@ -1,0 +1,26 @@
+~~ lineWidth: 40, textWrap: maintain ~~
+!! Japanese zenkaku specific tests !!
+- 全角　スペース　置換
+- 全角かっこ（置換）
+- 全角コロン：置換
+- ＂＃＄％＆＇（），．／
+- ０１２３４５６７８９：
+- ；＜＝＞＠ＡＢＣＤＥＦ
+- ＧＨＩＪＫＬＭＮＯＰＱ
+- ＲＳＴＵＶＷＸＹＺ＼＾
+- ｀ａｂｃｄｅｆｇｈｉｊ
+- ｋｌｍｎｏｐｑｒｓｔｕ
+- ｖｗｘｙｚ｛｜｝
+
+[expect]
+- 全角 スペース 置換
+- 全角かっこ(置換)
+- 全角コロン: 置換
+- "#$%&'(),./
+- 0123456789:
+- ;<=>@ABCDEF
+- GHIJKLMNOPQ
+- RSTUVWXYZ\^
+- `abcdefghij
+- klmnopqrstu
+- vwxyz{|}
