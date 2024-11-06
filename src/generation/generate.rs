@@ -490,8 +490,13 @@ fn gen_str(text: &str, context: &mut Context) -> PrintItems {
     pub fn add_char(&mut self, character: char) {
       let character = match character {
         '　' => ' ',
-        '\u{FF02}'..='\u{FF09}' | '\u{FF0C}' | '\u{FF0E}'..='\u{FF1E}' | '\u{FF20}'..='\u{FF3A}' |
-        '\u{FF3C}' | '\u{FF3E}' | '\u{FF40}'..='\u{FF5D}' => char::from_u32(character as u32 - 0xFEE0).unwrap_or(character),
+        '\u{FF02}'..='\u{FF09}'
+        | '\u{FF0C}'
+        | '\u{FF0E}'..='\u{FF1E}'
+        | '\u{FF20}'..='\u{FF3A}'
+        | '\u{FF3C}'
+        | '\u{FF3E}'
+        | '\u{FF40}'..='\u{FF5D}' => char::from_u32(character as u32 - 0xFEE0).unwrap_or(character),
         _ => character,
       };
 
@@ -1122,6 +1127,7 @@ fn is_all_ones_list(list: &List, context: &Context) -> bool {
 /// Determine whether whitespace should be added between two characters.
 #[rustfmt::skip]
 fn should_add_space_between_chars(prev: char, curr: char) -> bool {
+  #[allow(clippy::redundant_guards)]
   match (prev, curr, is_japanese(prev), is_japanese(curr)) {
     (_   , _   , true , true )                                                                  => false,
     (prev, _   , _    , true ) if matches!(prev, '(' | ')' | '*' | '/' | '_' | '`' | '~')       => false,
@@ -1137,31 +1143,37 @@ fn should_add_space_between_chars(prev: char, curr: char) -> bool {
 /// Determine whether a character is a Japanese character.
 #[inline]
 fn is_japanese(character: char) -> bool {
-  ('\u{3041}'..='\u{3096}').contains(&character) || ('\u{3099}'..='\u{309F}').contains(&character) // Hiragana: https://www.unicode.org/charts/PDF/U3040.pdf
-        || ('\u{1B100}'..='\u{1B12F}').contains(&character) // Kana Extended-A: https://www.unicode.org/charts/PDF/U1B100.pdf
-        || ('\u{1AFF0}'..='\u{1AFFF}').contains(&character) // Kana Extended-B: https://www.unicode.org/charts/PDF/U1AFF0.pdf
-        || ('\u{1B000}'..='\u{1B0FF}').contains(&character) // Kana Supplement: https://www.unicode.org/charts/PDF/U1B000.pdf
-        || ('\u{1B130}'..='\u{1B16F}').contains(&character) // Small Kana Extension: https://www.unicode.org/charts/PDF/U1B130.pdf
-        || ('\u{30A0}'..='\u{30FF}').contains(&character) // Katakana: https://www.unicode.org/charts/PDF/U30A0.pdf
-        || ('\u{4E00}'..='\u{9FFF}').contains(&character) // CJK Unified Ideographs: https://www.unicode.org/charts/PDF/U4E00.pdf
-        || ('\u{3400}'..='\u{4DBF}').contains(&character) // CJK Unified Ideographs Extension A: https://www.unicode.org/charts/PDF/U3400.pdf
-        || ('\u{20000}'..='\u{2A6DF}').contains(&character) // CJK Unified Ideographs Extension B: https://www.unicode.org/charts/PDF/U20000.pdf
-        || ('\u{2A700}'..='\u{2B739}').contains(&character) // CJK Unified Ideographs Extension C: https://www.unicode.org/charts/PDF/U2A700.pdf
-        || ('\u{2B740}'..='\u{2B81D}').contains(&character) // CJK Unified Ideographs Extension D: https://www.unicode.org/charts/PDF/U2B740.pdf
-        || ('\u{2B820}'..='\u{2CEA1}').contains(&character) // CJK Unified Ideographs Extension E: https://www.unicode.org/charts/PDF/U2B820.pdf
-        || ('\u{2CEB0}'..='\u{2EBE0}').contains(&character) // CJK Unified Ideographs Extension F: https://www.unicode.org/charts/PDF/U2CEB0.pdf
-        || ('\u{30000}'..='\u{3134A}').contains(&character) // CJK Unified Ideographs Extension G: https://www.unicode.org/charts/PDF/U30000.pdf
-        || ('\u{31350}'..='\u{323AF}').contains(&character) // CJK Unified Ideographs Extension H: https://www.unicode.org/charts/PDF/U31350.pdf
-        || ('\u{2EBF0}'..='\u{2EE5D}').contains(&character) // CJK Unified Ideographs Extension I: https://www.unicode.org/charts/PDF/U2EBF0.pdf
-        || ('\u{F900}'..='\u{FAFF}').contains(&character) // CJK Compatibility Ideographs: https://www.unicode.org/charts/PDF/UF900.pdf
-        || ('\u{2F800}'..='\u{2FA1F}').contains(&character) // CJK Compatibility Ideographs Supplement: https://www.unicode.org/charts/PDF/U2F800.pdf
-        || is_japanese_symbols_and_punctuation(character)
+  matches!(
+    character,
+    '\u{3041}'..='\u{3096}' | // Hiragana: https://www.unicode.org/charts/PDF/U3040.pdf
+    '\u{3099}'..='\u{309F}' | // Hiragana: https://www.unicode.org/charts/PDF/U3040.pdf
+    '\u{1B100}'..='\u{1B12F}' | // Kana Extended-A: https://www.unicode.org/charts/PDF/U1B100.pdf
+    '\u{1AFF0}'..='\u{1AFFF}' | // Kana Extended-B: https://www.unicode.org/charts/PDF/U1AFF0.pdf
+    '\u{1B000}'..='\u{1B0FF}' | // Kana Supplement: https://www.unicode.org/charts/PDF/U1B000.pdf
+    '\u{1B130}'..='\u{1B16F}' | // Small Kana Extension: https://www.unicode.org/charts/PDF/U1B130.pdf
+    '\u{30A0}'..='\u{30FF}' | // Katakana: https://www.unicode.org/charts/PDF/U30A0.pdf
+    '\u{4E00}'..='\u{9FFF}' | // CJK Unified Ideographs: https://www.unicode.org/charts/PDF/U4E00.pdf
+    '\u{3400}'..='\u{4DBF}' | // CJK Unified Ideographs Extension A: https://www.unicode.org/charts/PDF/U3400.pdf
+    '\u{20000}'..='\u{2A6DF}' | // CJK Unified Ideographs Extension B: https://www.unicode.org/charts/PDF/U20000.pdf
+    '\u{2A700}'..='\u{2B739}' | // CJK Unified Ideographs Extension C: https://www.unicode.org/charts/PDF/U2A700.pdf
+    '\u{2B740}'..='\u{2B81D}' | // CJK Unified Ideographs Extension D: https://www.unicode.org/charts/PDF/U2B740.pdf
+    '\u{2B820}'..='\u{2CEA1}' | // CJK Unified Ideographs Extension E: https://www.unicode.org/charts/PDF/U2B820.pdf
+    '\u{2CEB0}'..='\u{2EBE0}' | // CJK Unified Ideographs Extension F: https://www.unicode.org/charts/PDF/U2CEB0.pdf
+    '\u{30000}'..='\u{3134A}' | // CJK Unified Ideographs Extension G: https://www.unicode.org/charts/PDF/U30000.pdf
+    '\u{31350}'..='\u{323AF}' | // CJK Unified Ideographs Extension H: https://www.unicode.org/charts/PDF/U31350.pdf
+    '\u{2EBF0}'..='\u{2EE5D}' | // CJK Unified Ideographs Extension I: https://www.unicode.org/charts/PDF/U2EBF0.pdf
+    '\u{F900}'..='\u{FAFF}' | // CJK Compatibility Ideographs: https://www.unicode.org/charts/PDF/UF900.pdf
+    '\u{2F800}'..='\u{2FA1F}' // CJK Compatibility Ideographs Supplement: https://www.unicode.org/charts/PDF/U2F800.pdf
+  ) || is_japanese_symbols_and_punctuation(character)
 }
 
 /// Determine whether a character is a CJK symbols and punctuation character.
 #[inline]
 fn is_japanese_symbols_and_punctuation(character: char) -> bool {
-  ('\u{3000}'..='\u{303F}').contains(&character) // CJK Symbols and Punctuation: https://www.unicode.org/charts/PDF/U3000.pdf
-        || ('\u{FF01}'..='\u{FF60}').contains(&character) // Fullwidth Forms: https://www.unicode.org/charts/PDF/UFF00.pdf
-        || character == '\u{30fb}' // Katakana Middle Dot: https://www.unicode.org/charts/PDF/U30A0.pdf
+  matches!(
+    character,
+    '\u{3000}'..='\u{303F}' | // CJK Symbols and Punctuation: https://www.unicode.org/charts/PDF/U3000.pdf
+    '\u{FF01}'..='\u{FF60}' | // Fullwidth Forms: https://www.unicode.org/charts/PDF/UFF00.pdf
+    '\u{30fb}' // Katakana Middle Dot: https://www.unicode.org/charts/PDF/U30A0.pdf
+  )
 }
