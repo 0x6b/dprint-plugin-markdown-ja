@@ -490,9 +490,10 @@ fn gen_str(text: &str, context: &mut Context) -> PrintItems {
     pub fn add_char(&mut self, character: char) {
       let character = match character {
         '　' => ' ',
+        '\u{FF0C}' => '、',
+        '\u{FF0E}' => '。',
         '\u{FF02}'..='\u{FF09}'
-        | '\u{FF0C}'
-        | '\u{FF0E}'..='\u{FF1E}'
+        | '\u{FF0F}'..='\u{FF1E}'
         | '\u{FF20}'..='\u{FF3A}'
         | '\u{FF3C}'
         | '\u{FF3E}'
