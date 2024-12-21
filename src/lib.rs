@@ -15,7 +15,6 @@ mod format_text;
 mod generation;
 
 pub use format_text::format_text;
-
 #[cfg(feature = "tracing")]
 pub use format_text::trace_file;
 
