@@ -237,6 +237,11 @@ fn parse_start(start_tag: Tag, iterator: &mut EventIterator) -> Result<Node, Par
     Tag::Item => parse_item(iterator).map(|x| x.into()),
     Tag::HtmlBlock => parse_html_block(iterator).map(|x| x.into()),
     Tag::MetadataBlock(metadata_block_kind) => parse_metadata(metadata_block_kind, iterator).map(|x| x.into()),
+
+    // These tags are not implemented
+    Tag::DefinitionList => parse_paragraph(iterator).map(|x| x.into()),
+    Tag::DefinitionListTitle => parse_paragraph(iterator).map(|x| x.into()),
+    Tag::DefinitionListDefinition => parse_paragraph(iterator).map(|x| x.into()),
   }
 }
 
@@ -297,7 +302,7 @@ fn parse_block_quote(iterator: &mut EventIterator) -> Result<BlockQuote, ParseEr
 
   while let Some(event) = iterator.next() {
     match event {
-      Event::End(TagEnd::BlockQuote) => break,
+      Event::End(TagEnd::BlockQuote(None)) => break,
       _ => children.push(parse_event(event, iterator)?),
     }
   }
