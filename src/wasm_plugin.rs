@@ -104,6 +104,7 @@ impl SyncPluginHandler<Configuration> for MarkdownPluginHandler {
         "astro" => Some("astro"),
         "yml" | "yaml" => Some("yaml"),
         "graphql" => Some("graphql"),
+        "python" | "py" => Some("py"),
         _ => None,
       }
     }
