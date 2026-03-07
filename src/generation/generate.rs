@@ -867,6 +867,10 @@ fn gen_hard_break(_: &mut Context) -> PrintItems {
 }
 
 fn gen_table(table: &Table, context: &mut Context) -> PrintItems {
+  if context.configuration.skip_table_formatting {
+    return gen_range(table.range.clone(), context);
+  }
+
   let header = table
     .header
     .cells
