@@ -261,9 +261,9 @@ macro_rules! generate_node {
             }
         }
 
-        impl Into<Node> for $node_name {
-            fn into(self) -> Node {
-                Node::$node_name(self)
+        impl From<$node_name> for Node {
+            fn from(n: $node_name) -> Node {
+                Node::$node_name(n)
             }
         }
         )*
@@ -279,7 +279,7 @@ impl Node {
     }
   }
 
-  pub fn has_preceeding_space(&self, file_text: &str) -> bool {
+  pub fn has_preceding_space(&self, file_text: &str) -> bool {
     let range = self.range();
     if range.start == 0 {
       false

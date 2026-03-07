@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use dprint_core::configuration::*;
 use dprint_core::generate_str_to_from;
 use serde::Deserialize;
@@ -13,10 +15,15 @@ pub struct Configuration {
   pub emphasis_kind: EmphasisKind,
   pub strong_kind: StrongKind,
   pub unordered_list_kind: UnorderedListKind,
+  pub heading_kind: HeadingKind,
   pub ignore_directive: String,
   pub ignore_file_directive: String,
   pub ignore_start_directive: String,
   pub ignore_end_directive: String,
+  /// Custom tag to file extension mappings for formatting code blocks.
+  /// For example: { "custom-tag": "md" }
+  #[serde(default)]
+  pub tags: HashMap<String, String>,
 }
 
 /// Text wrapping possibilities.
@@ -69,11 +76,11 @@ generate_str_to_from![StrongKind, [Asterisks, "asterisks"], [Underscores, "under
 pub enum UnorderedListKind {
   /// Uses dashes (-) as primary character for lists (default).
   ///
-  /// In this case, asterisks are used as alternate list chracters.
+  /// In this case, asterisks are used as alternate list characters.
   Dashes,
   /// Uses asterisks (*) as primary character for lists.
   ///
-  /// In this case, dashes are used as alternate list chracters.
+  /// In this case, dashes are used as alternate list characters.
   Asterisks,
 }
 
@@ -91,3 +98,20 @@ impl UnorderedListKind {
 }
 
 generate_str_to_from![UnorderedListKind, [Dashes, "dashes"], [Asterisks, "asterisks"]];
+
+/// The style of heading to use for level 1 and level 2 headings:
+/// [setext](https://spec.commonmark.org/0.31.2/#setext-headings) or
+/// [ATX](https://spec.commonmark.org/0.31.2/#atx-headings). Level 3 and
+/// higher headings always use ATX headings, since Markdown only supports
+/// setext headers for levels 1 and 2.
+#[derive(Clone, PartialEq, Copy, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum HeadingKind {
+  /// Uses an underline of `=` or `-` beneath the heading text for level 1 and
+  /// 2 headings.
+  Setext,
+  /// Uses `#` or `##` before the heading text for level 1 and 2 headings.
+  Atx,
+}
+
+generate_str_to_from![HeadingKind, [Setext, "setext"], [Atx, "atx"]];
