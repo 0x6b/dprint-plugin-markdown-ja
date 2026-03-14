@@ -5,7 +5,8 @@ use regex::Regex;
 /// Checks if the provided word is a word that could be a list.
 /// Assumes the provided string is one word and doesn't have whitespace.
 pub fn is_list_word(word: &str) -> bool {
-  debug_assert!(!word.chars().any(|c| c.is_whitespace()));
+  const NON_BREAKING_SPACE: char = '\u{a0}';
+  debug_assert!(!word.chars().any(|c| c.is_whitespace() && c != NON_BREAKING_SPACE));
 
   if word == "*" || word == "-" || word == "+" {
     true
@@ -74,7 +75,7 @@ pub fn get_leading_non_space_tab_byte_pos(text: &str, pos: usize) -> usize {
   0
 }
 
-pub fn unindent(text: &str) -> Cow<str> {
+pub fn unindent(text: &str) -> Cow<'_, str> {
   let lines = text.split('\n').collect::<Vec<_>>();
   let mut lines_with_indent = Vec::with_capacity(lines.len());
   for line in lines.into_iter() {
@@ -95,6 +96,29 @@ pub fn unindent(text: &str) -> Cow<str> {
     )
   } else {
     Cow::Borrowed(text)
+  }
+}
+
+///  This trims only document white space characters as defined
+/// in the [Mozilla Developer Network docs](https://developer.mozilla.org/en-US/docs/Web/CSS/Guides/Text/Whitespace#what_is_whitespace).
+pub fn trim_document_whitespace<'b>(s: &'b str) -> &'b str {
+  let bytes = s.as_bytes();
+
+  let start = bytes
+    .iter()
+    .position(|&b| !matches!(b, b' ' | b'\t' | b'\r' | b'\n'))
+    .unwrap_or(bytes.len());
+
+  let end = bytes
+    .iter()
+    .rposition(|&b| !matches!(b, b' ' | b'\t' | b'\r' | b'\n'))
+    .map(|i| i + 1)
+    .unwrap_or(0);
+
+  if start <= end {
+    &s[start..end]
+  } else {
+    ""
   }
 }
 
