@@ -66,6 +66,12 @@ pub fn resolve_config(
     ),
     heading_kind: get_value(&mut config, "headingKind", HeadingKind::Atx, &mut diagnostics),
     skip_table_formatting: get_value(&mut config, "skipTableFormatting", false, &mut diagnostics),
+    list_indent_kind: get_value(
+      &mut config,
+      "listIndentKind",
+      ListIndentKind::CommonMark,
+      &mut diagnostics,
+    ),
     ignore_directive: get_value(
       &mut config,
       "ignoreDirective",
