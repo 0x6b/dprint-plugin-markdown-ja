@@ -1,0 +1,180 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://plugins.dprint.dev/0x6b/dprint-plugin-markdown-ja/0.0.0/schema.json",
+  "type": "object",
+  "definitions": {
+    "newLineKind": {
+      "description": "The kind of newline to use.",
+      "type": "string",
+      "default": "lf",
+      "oneOf": [{
+        "const": "auto",
+        "description": "For each file, uses the newline kind found at the end of the last line."
+      }, {
+        "const": "crlf",
+        "description": "Uses carriage return, line feed."
+      }, {
+        "const": "lf",
+        "description": "Uses line feed."
+      }, {
+        "const": "system",
+        "description": "Uses the system standard (ex. crlf on Windows)."
+      }]
+    },
+    "textWrap": {
+      "description": "Text wrapping possibilities.",
+      "type": "string",
+      "default": "maintain",
+      "oneOf": [{
+        "const": "always",
+        "description": "Always wraps text."
+      }, {
+        "const": "maintain",
+        "description": "Maintains line breaks."
+      }, {
+        "const": "never",
+        "description": "Never wraps text."
+      }]
+    },
+    "emphasisKind": {
+      "description": "The character to use for emphasis/italics.",
+      "type": "string",
+      "default": "underscores",
+      "oneOf": [{
+        "const": "asterisks",
+        "description": "Uses asterisks (*) for emphasis."
+      }, {
+        "const": "underscores",
+        "description": "Uses underscores (_) for emphasis."
+      }]
+    },
+    "strongKind": {
+      "description": "The character to use for strong emphasis/bold.",
+      "type": "string",
+      "default": "asterisks",
+      "oneOf": [{
+        "const": "asterisks",
+        "description": "Uses asterisks (**) for strong emphasis."
+      }, {
+        "const": "underscores",
+        "description": "Uses underscores (__) for strong emphasis."
+      }]
+    },
+    "unorderedListKind": {
+      "description": "The character to use for unordered lists.",
+      "type": "string",
+      "default": "dashes",
+      "oneOf": [{
+        "const": "dashes",
+        "description": "Uses dashes (-) as primary character for lists."
+      }, {
+        "const": "asterisks",
+        "description": "Uses asterisks (*) as primary character for lists."
+      }]
+    },
+    "headingKind": {
+      "description": "The style of heading to use for level 1 and level 2 headings. Level 3 and higher always use ATX headings.",
+      "type": "string",
+      "default": "atx",
+      "oneOf": [{
+        "const": "atx",
+        "description": "Uses # or ## before the heading text (ATX headings)."
+      }, {
+        "const": "setext",
+        "description": "Uses an underline of = or - beneath the heading text (setext headings). Only applies to level 1 and 2 headings."
+      }]
+    },
+    "listIndentKind": {
+      "description": "The style of indentation to use for list items. CommonMark aligns to the content column after the marker. PythonMarkdown uses a fixed 4-space indent, required by tools like mkdocs-material.",
+      "type": "string",
+      "default": "commonMark",
+      "oneOf": [{
+        "const": "commonMark",
+        "description": "Indents continuation lines to align with the content after the list marker (e.g. 3 spaces for '1. ', 4 for '10. ')."
+      }, {
+        "const": "pythonMarkdown",
+        "description": "Always indents by 4 spaces, regardless of marker width."
+      }]
+    },
+    "deno": {
+      "description": "Top level configuration that sets the configuration to what is used in Deno.",
+      "type": "boolean",
+      "default": false,
+      "oneOf": [{
+        "const": true,
+        "description": ""
+      }, {
+        "const": false,
+        "description": ""
+      }]
+    }
+  },
+  "properties": {
+    "locked": {
+      "description": "Whether the configuration is not allowed to be overridden or extended.",
+      "type": "boolean"
+    },
+    "lineWidth": {
+      "description": "The width of a line the printer will try to stay under. Note that the printer may exceed this width in certain cases.",
+      "default": 80,
+      "type": "number"
+    },
+    "newLineKind": {
+      "$ref": "#/definitions/newLineKind"
+    },
+    "textWrap": {
+      "$ref": "#/definitions/textWrap"
+    },
+    "emphasisKind": {
+      "$ref": "#/definitions/emphasisKind"
+    },
+    "strongKind": {
+      "$ref": "#/definitions/strongKind"
+    },
+    "unorderedListKind": {
+      "$ref": "#/definitions/unorderedListKind"
+    },
+    "headingKind": {
+      "$ref": "#/definitions/headingKind"
+    },
+    "skipTableFormatting": {
+      "description": "Whether to skip formatting tables.",
+      "default": false,
+      "type": "boolean"
+    },
+    "listIndentKind": {
+      "$ref": "#/definitions/listIndentKind"
+    },
+    "deno": {
+      "$ref": "#/definitions/deno"
+    },
+    "ignoreDirective": {
+      "description": "The text to use for an ignore directive (ex. `<!-- dprint-ignore -->`).",
+      "default": "dprint-ignore",
+      "type": "string"
+    },
+    "ignoreFileDirective": {
+      "description": "The text to use for an ignore file directive (ex. `<!-- dprint-ignore-file -->`).",
+      "default": "dprint-ignore-file",
+      "type": "string"
+    },
+    "ignoreStartDirective": {
+      "description": "The text to use for an ignore start directive (ex. `<!-- dprint-ignore-start -->`).",
+      "default": "dprint-ignore-start",
+      "type": "string"
+    },
+    "ignoreEndDirective": {
+      "description": "The text to use for an ignore end directive (ex. `<!-- dprint-ignore-end -->`).",
+      "default": "dprint-ignore-end",
+      "type": "string"
+    },
+    "tags": {
+      "description": "Custom tag to file extension mappings for formatting code blocks. For example: { \"markdown\": \"md\" }",
+      "type": "object",
+      "additionalProperties": {
+        "type": "string",
+        "description": "The file extension to use when formatting code blocks with this tag."
+      }
+    }
+  }
+}

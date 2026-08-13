@@ -57,12 +57,12 @@ impl SyncPluginHandler<Configuration> for MarkdownPluginHandler {
       name: env!("CARGO_PKG_NAME").to_string(),
       version: version.clone(),
       config_key: "markdownJa".to_string(),
-      help_url: "https://dprint.dev/plugins/markdown".to_string(),
+      help_url: "https://github.com/0x6b/dprint-plugin-markdown-ja".to_string(),
       config_schema_url: format!(
-        "https://plugins.dprint.dev/dprint/dprint-plugin-markdown/{}/schema.json",
+        "https://plugins.dprint.dev/0x6b/dprint-plugin-markdown-ja/{}/schema.json",
         version
       ),
-      update_url: Some("https://plugins.dprint.dev/dprint/dprint-plugin-markdown/latest.json".to_string()),
+      update_url: Some("https://plugins.dprint.dev/0x6b/dprint-plugin-markdown-ja/latest.json".to_string()),
     }
   }
 
