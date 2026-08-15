@@ -59,7 +59,7 @@ impl SyncPluginHandler<Configuration> for MarkdownPluginHandler {
       config_key: "markdownJa".to_string(),
       help_url: "https://github.com/0x6b/dprint-plugin-markdown-ja".to_string(),
       config_schema_url: format!(
-        "https://plugins.dprint.dev/0x6b/dprint-plugin-markdown-ja/{}/schema.json",
+        "https://plugins.dprint.dev/0x6b/dprint-plugin-markdown-ja/v{}/schema.json",
         version
       ),
       update_url: Some("https://plugins.dprint.dev/0x6b/dprint-plugin-markdown-ja/latest.json".to_string()),

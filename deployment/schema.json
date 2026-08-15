@@ -1,6 +1,6 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "$id": "https://plugins.dprint.dev/0x6b/dprint-plugin-markdown-ja/0.0.0/schema.json",
+  "$id": "https://plugins.dprint.dev/0x6b/dprint-plugin-markdown-ja/v0.0.0/schema.json",
   "type": "object",
   "definitions": {
     "newLineKind": {
