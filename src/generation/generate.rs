@@ -138,24 +138,26 @@ fn gen_nodes(nodes: &[Node], context: &mut Context) -> PrintItems {
             let new_line_count = context.get_new_lines_in_range(between_range.0, between_range.1);
 
             if new_line_count == 1 {
-              // Callout example:
-              // > [!NOTE]
-              // > Some note.
-              let is_callout = if context.is_in_block_quote() {
-                if let Node::Text(text) = last_node {
-                  is_callout_text(&text.text)
+              if context.configuration.text_wrap == TextWrap::Maintain || !has_japanese_text_boundary(last_node, node) {
+                // Callout example:
+                // > [!NOTE]
+                // > Some note.
+                let is_callout = if context.is_in_block_quote() {
+                  if let Node::Text(text) = last_node {
+                    is_callout_text(&text.text)
+                  } else {
+                    false
+                  }
                 } else {
                   false
+                };
+                if is_callout && !context.is_text_wrap_disabled() {
+                  items.push_signal(Signal::NewLine); // force a newline
+                } else if matches!(node, Node::Html(_)) {
+                  items.push_signal(Signal::NewLine);
+                } else {
+                  items.extend(get_newline_wrapping_based_on_config(context));
                 }
-              } else {
-                false
-              };
-              if is_callout && !context.is_text_wrap_disabled() {
-                items.push_signal(Signal::NewLine); // force a newline
-              } else if matches!(node, Node::Html(_)) {
-                items.push_signal(Signal::NewLine);
-              } else {
-                items.extend(get_newline_wrapping_based_on_config(context));
               }
             } else if new_line_count > 1 {
               items.push_signal(Signal::NewLine);
@@ -468,6 +470,15 @@ fn gen_text(text: &Text, context: &mut Context) -> PrintItems {
 fn is_callout_text(text: &str) -> bool {
   // ex. [!NOTE]
   text.starts_with("[!") && text.ends_with("]") && text[2..text.len() - 1].chars().all(|c| c.is_ascii_uppercase())
+}
+
+fn has_japanese_text_boundary(previous: &Node, current: &Node) -> bool {
+  match (previous, current) {
+    (Node::Text(previous), Node::Text(current)) => {
+      previous.text.chars().last().is_some_and(is_japanese) && current.text.chars().next().is_some_and(is_japanese)
+    }
+    _ => false,
+  }
 }
 
 fn gen_str(text: &str, context: &mut Context) -> PrintItems {
