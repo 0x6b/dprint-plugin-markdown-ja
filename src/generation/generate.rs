@@ -1191,7 +1191,7 @@ fn should_add_space_between_chars(prev: char, curr: char) -> bool {
   #[allow(clippy::redundant_guards)]
   match (prev, curr, is_japanese(prev), is_japanese(curr)) {
     (_   , _   , true , true )                                                                  => false,
-    (prev, _   , _    , true ) if matches!(prev, '(' | ')' | '*' | '/' | '_' | '`' | '~')       => false,
+    (prev, _   , _    , true ) if matches!(prev, '#' | '(' | ')' | '*' | '/' | '_' | '`' | '~') => false,
     (_   , curr, true , _    ) if matches!(curr, '(' | ')' | '*' | '/' | '_' | '`' | '~' | ':') => false,
     (_   , _   , _    , _    ) if is_japanese_symbols_and_punctuation(prev)                     => false,
     (_   , _   , _    , _    ) if is_japanese_symbols_and_punctuation(curr)                     => false,
@@ -1233,6 +1233,7 @@ fn is_japanese(character: char) -> bool {
 fn is_japanese_symbols_and_punctuation(character: char) -> bool {
   matches!(
     character,
+    '\u{2025}'..='\u{2026}' | // Two Dot Leader and Horizontal Ellipsis: https://www.unicode.org/charts/PDF/U2000.pdf
     '\u{3000}'..='\u{303F}' | // CJK Symbols and Punctuation: https://www.unicode.org/charts/PDF/U3000.pdf
     '\u{FF01}'..='\u{FF60}' | // Fullwidth Forms: https://www.unicode.org/charts/PDF/UFF00.pdf
     '\u{30fb}' // Katakana Middle Dot: https://www.unicode.org/charts/PDF/U30A0.pdf
