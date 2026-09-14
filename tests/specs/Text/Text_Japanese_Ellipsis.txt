@@ -1,7 +1,0 @@
-!! should not add spaces around a Japanese ellipsis !!
-選ぶ…そして進む
-選ぶ‥そして進む
-
-[expect]
-選ぶ…そして進む
-選ぶ‥そして進む

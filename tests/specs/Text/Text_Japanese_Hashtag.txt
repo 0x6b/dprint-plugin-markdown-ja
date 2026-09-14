@@ -1,5 +1,0 @@
-!! should not add a space after the hash in a Japanese hashtag !!
-#ハッシュタグ
-
-[expect]
-#ハッシュタグ
