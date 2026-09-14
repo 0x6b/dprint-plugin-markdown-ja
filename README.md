@@ -7,14 +7,14 @@ Opinionated and hacky Markdown formatter for [dprint](https://dprint.dev/) that 
 The plugin will insert a space between a Japanese character and a non-Japanese character, except in the following opinionated rules:
 
 - The previous character is Japanese, and the current character is one of ``()*/:_`~``.
-- The previous character is one of ``()*/_`~``, and the current character is Japanese.
+- The previous character is one of ``#()*/_`~``, and the current character is Japanese.
 - Either the previous or current character is a Japanese symbol or punctuation mark.
 
 The plugin will also replace the following characters with their half-width counterparts:
 
 - `＂＃＄％＆＇（），．／０１２３４５６７８９：；＜＝＞＠ＡＢＣＤＥＦＧＨＩＪＫＬＭＮＯＰＱＲＳＴＵＶＷＸＹＺ＼＾｀ａｂｃｄｅｆｇｈｉｊｋｌｍｎｏｐｑｒｓｔｕｖｗｘｙｚ｛｜｝` and full-width whitespace `　`.
 
-See [Text_Japanese.txt](tests/specs/Text/Text_Japanese.txt) and [Text_Japanese_Zenkaku.txt](tests/specs/Text/Text_Japanese_Zenkaku.txt) for how the plugin will work.
+See the [Japanese text specs](tests/specs/Text) for how the plugin will work.
 
 Please note that inserting a space in such a way is a controversial topic. See [Do not insert whitespaces between latin and cj letters · Issue #6385 · prettier/prettier](https://github.com/prettier/prettier/issues/6385) for the discussion in the context of Prettier.
 
@@ -50,6 +50,7 @@ The plugin will determine whether a character is **Japanese** or **Japanese symb
 
 | Description                                                                   | Range                 |
 | ----------------------------------------------------------------------------- | --------------------- |
+| [Two Dot Leader and Horizontal Ellipsis](https://www.unicode.org/charts/PDF/U2000.pdf) | `\u{2025}..=\u{2026}` |
 | [CJK Symbols and Punctuation](https://www.unicode.org/charts/PDF/U3000.pdf)   | `\u{3000}..=\u{303F}` |
 | [Halfwidth and Fullwidth Forms](https://www.unicode.org/charts/PDF/UFF00.pdf) | `\u{FF01}..=\u{FF60}` |
 | [Katakana Middle Dot](https://www.unicode.org/charts/PDF/U30A0.pdf)           | `\u{30fb}`            |
