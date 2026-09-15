@@ -28,7 +28,8 @@ cp ../target/aarch64-linux-android/formatter-release/libdprint_markdown_ja_forma
 "$toolchain/llvm-strip" --strip-unneeded "$stage/jni/arm64-v8a/libdprint_markdown_ja_formatter.so"
 cp android/AndroidManifest.xml "$stage/"
 cp android/consumer-rules.pro "$stage/proguard.txt"
-cp LICENSE THIRD_PARTY_NOTICES.md "$stage/META-INF/"
+python3 scripts/license-notices.py
+cp LICENSE ../target/THIRD_PARTY_NOTICES.md "$stage/META-INF/"
 jar cf ../target/dprint-markdown-ja-formatter.aar -C "$stage" .
 wc -c ../target/aarch64-linux-android/formatter-release/libdprint_markdown_ja_formatter.so \
     "$stage/jni/arm64-v8a/libdprint_markdown_ja_formatter.so" ../target/dprint-markdown-ja-formatter.aar

@@ -46,5 +46,7 @@ for package in sorted(packages.values(), key=lambda p: (p["name"], p["version"])
         header = "\n".join((directory / "src/lib.rs").read_text().splitlines()[:9])
         mit = (root / "LICENSE").read_text().split("Permission is hereby granted", 1)[1]
         parts.append(f"\n```text\n{header}\n\nPermission is hereby granted{mit}```\n")
-(root / "THIRD_PARTY_NOTICES.md").write_text("".join(parts))
-print("Updated THIRD_PARTY_NOTICES.md")
+output = root.parent / "target/THIRD_PARTY_NOTICES.md"
+output.parent.mkdir(parents=True, exist_ok=True)
+output.write_text("".join(parts))
+print(f"Generated {output}")

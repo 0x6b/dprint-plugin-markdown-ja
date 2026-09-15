@@ -66,7 +66,7 @@ JNI converts Java UTF-16 strictly: supplementary Unicode and embedded NUL surviv
 
 ## Android ARM64 AAR
 
-Install an Android NDK (r28+ recommended), JDK 11+, and rustup. No Gradle or Android SDK is needed to assemble this resource-free AAR:
+Install an Android NDK (r28+ recommended), JDK 11+, Python 3, and rustup. No Gradle or Android SDK is needed to assemble this resource-free AAR:
 
 ```sh
 export ANDROID_NDK_HOME=/absolute/path/to/android-ndk
@@ -134,4 +134,4 @@ MARKDOWN_JA_WASM=/absolute/path/to/dprint_plugin_markdown_ja.wasm \
 cargo test --locked --test core stock_dprint_parity -- --ignored
 ```
 
-This adapter is MIT licensed. The upstream plugin is MIT, copyright **2024 0x6b** and **2020–2023 David Sherret**. Full dependency notices are retained in `THIRD_PARTY_NOTICES.md` and bundled in the AAR. Redistribute that file and `LICENSE` alongside standalone binaries too. After changing locked dependencies, run `python3 scripts/license-notices.py` and review the result. The generator covers Linux x86-64 and Android ARM64 (including build dependencies); regenerate/extend the platform set when distributing other targets.
+This adapter is MIT licensed. The upstream plugin is MIT, copyright **2024 0x6b** and **2020–2023 David Sherret**. Full dependency notices are generated from locked Cargo sources, not checked into Git. The AAR build automatically regenerates `../target/THIRD_PARTY_NOTICES.md` and bundles it alongside `LICENSE`; generation failure stops packaging. For standalone CLI/JNI distribution, run `python3 scripts/license-notices.py`, review the generated notices, and redistribute them and `LICENSE` alongside the binaries. The generator requires Python 3 and covers Linux x86-64 and Android ARM64 (including build dependencies); regenerate/extend the platform set when distributing other targets.
