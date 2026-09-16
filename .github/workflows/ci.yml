@@ -1,0 +1,55 @@
+name: ci
+
+on:
+  pull_request:
+  push:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dsherret/rust-toolchain-file@v1
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Rust formatting
+        run: cargo fmt --all -- --check
+      - name: Formatter lint
+        run: cargo clippy --locked -p dprint-markdown-ja-formatter-core -p dprint-markdown-ja-formatter-cli -p dprint-markdown-ja-formatter-android --all-targets -- -D warnings
+      - name: Workspace tests
+        run: cargo test --locked --workspace
+      - name: Host JNI integration
+        run: bash formatter/scripts/test-jvm.sh
+
+  aar:
+    needs: test
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dsherret/rust-toolchain-file@v1
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: android-actions/setup-android@v3
+      - name: Install Android NDK
+        run: |
+          sdkmanager 'ndk;28.2.13676358'
+          echo "ANDROID_NDK_HOME=$ANDROID_HOME/ndk/28.2.13676358" >> "$GITHUB_ENV"
+      - name: Build AAR
+        run: bash formatter/scripts/build-aar.sh
+      - name: Check packaged AAR
+        run: python3 formatter/scripts/check-aar.py "$ANDROID_NDK_HOME/toolchains/llvm/prebuilt/linux-x86_64/bin"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dprint-markdown-ja-formatter-${{ github.sha }}
+          path: target/dprint-markdown-ja-formatter.aar
+          if-no-files-found: error
+          retention-days: 14
