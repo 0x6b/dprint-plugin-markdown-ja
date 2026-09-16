@@ -12,6 +12,12 @@ fn japanese_spacing_and_defaults() {
 }
 
 #[test]
+fn table_formatting_is_skipped_by_default() {
+  let input = "Name|Value\n--|--:\n日本語|English\n";
+  assert!(matches!(Formatter::default().format(input).unwrap(), Cow::Borrowed(_)));
+}
+
+#[test]
 fn configured_markers_and_wrapping() {
   let f = Formatter::new(16, "always", "asterisks", "underscores").unwrap();
   assert_eq!(

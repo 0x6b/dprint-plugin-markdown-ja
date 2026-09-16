@@ -1,13 +1,97 @@
 use anyhow::{Context, Result, bail};
 use dprint_markdown_ja_formatter::Formatter;
+use ignore::{WalkBuilder, gitignore::GitignoreBuilder};
 use std::{
+  borrow::Cow,
+  collections::HashSet,
   ffi::OsString,
   fs,
   io::{self, Read, Write},
+  path::{Path, PathBuf},
   process::ExitCode,
 };
 
-const HELP: &str = "dprint-markdown-ja-formatter [OPTIONS] [FILE ...]\n\nNo files (or a single -): UTF-8 stdin to stdout. Files are updated in place.\n  --check                 Do not write; exit 1 if formatting differs\n  --line-width N          1..10000 (default 80)\n  --text-wrap MODE        never (default), maintain, always\n  --emphasis KIND         underscores (default), asterisks\n  --strong KIND           asterisks (default), underscores\n  --                      End options\n  -h, --help              Show help\nExit status: 0 success, 1 check differences, 2 error.\n";
+const HELP: &str = "dprint-markdown-ja-formatter [OPTIONS] [PATH ...]\n\nNo paths (or a single -): UTF-8 stdin to stdout. Files are updated in place.\nDirectories are searched recursively for Markdown files.\n  --check                 Do not write; exit 1 if formatting differs\n  --line-width N          1..10000 (default 80)\n  --text-wrap MODE        never (default), maintain, always\n  --emphasis KIND         underscores (default), asterisks\n  --strong KIND           asterisks (default), underscores\n  --excludes GLOB         Add a gitignore-style exclusion (repeatable)\n                          Defaults: **/node_modules, **/*-lock.json\n  --                      End options\n  -h, --help              Show help\nExit status: 0 success, 1 check differences, 2 error.\n";
+
+const DEFAULT_EXCLUDES: &[&str] = &["**/node_modules", "**/*-lock.json"];
+const MARKDOWN_EXTENSIONS: &[&str] = &["md", "mkd", "mdwn", "mkdn", "mdown", "markdown"];
+
+fn is_excluded(matcher: &ignore::gitignore::Gitignore, current_dir: &Path, path: &Path, is_dir: bool) -> bool {
+  let relative = if path.is_absolute() {
+    match path.strip_prefix(current_dir) {
+      Ok(path) => Cow::Borrowed(path),
+      Err(_) => Cow::Owned(path.components().skip(1).collect()),
+    }
+  } else {
+    Cow::Borrowed(path)
+  };
+  matcher.matched_path_or_any_parents(relative, is_dir).is_ignore()
+}
+
+fn collect_files(paths: Vec<OsString>, excludes: &[String]) -> Result<Vec<PathBuf>> {
+  let current_dir = std::env::current_dir().context("resolving current directory")?;
+  let mut matcher = GitignoreBuilder::new(&current_dir);
+  for pattern in DEFAULT_EXCLUDES
+    .iter()
+    .copied()
+    .chain(excludes.iter().map(String::as_str))
+  {
+    matcher
+      .add_line(None, pattern)
+      .with_context(|| format!("invalid exclude pattern {pattern:?}"))?;
+  }
+  let matcher = matcher.build().context("building exclude patterns")?;
+  let mut files = Vec::new();
+  let mut seen = HashSet::new();
+
+  for path in paths {
+    let path = PathBuf::from(path);
+    let metadata = fs::metadata(&path).with_context(|| format!("reading {}", path.display()))?;
+    if metadata.is_file() {
+      if !is_excluded(&matcher, &current_dir, &path, false) {
+        let canonical = fs::canonicalize(&path)?;
+        if seen.insert(canonical) {
+          files.push(path);
+        }
+      }
+      continue;
+    }
+    if !metadata.is_dir() {
+      bail!("{} is not a file or directory", path.display());
+    }
+
+    let mut walker = WalkBuilder::new(&path);
+    let walker_matcher = matcher.clone();
+    let walker_current_dir = current_dir.clone();
+    walker.standard_filters(false).filter_entry(move |entry| {
+      !is_excluded(
+        &walker_matcher,
+        &walker_current_dir,
+        entry.path(),
+        entry.file_type().is_some_and(|kind| kind.is_dir()),
+      )
+    });
+    for entry in walker.build() {
+      let entry = entry.with_context(|| format!("walking {}", path.display()))?;
+      if !entry.file_type().is_some_and(|kind| kind.is_file()) || !is_markdown(entry.path()) {
+        continue;
+      }
+      let canonical = fs::canonicalize(entry.path())?;
+      if seen.insert(canonical) {
+        files.push(entry.into_path());
+      }
+    }
+  }
+  files.sort();
+  Ok(files)
+}
+
+fn is_markdown(path: &Path) -> bool {
+  path
+    .extension()
+    .and_then(|extension| extension.to_str())
+    .is_some_and(|extension| MARKDOWN_EXTENSIONS.contains(&extension))
+}
 
 fn run() -> Result<u8> {
   let mut args = std::env::args_os().skip(1);
@@ -15,6 +99,7 @@ fn run() -> Result<u8> {
     (80, "never".to_owned(), "underscores".to_owned(), "asterisks".to_owned());
   let mut check = false;
   let mut files = Vec::<OsString>::new();
+  let mut excludes = Vec::new();
   while let Some(arg) = args.next() {
     match arg.to_str() {
       Some("-h" | "--help") => {
@@ -26,7 +111,7 @@ fn run() -> Result<u8> {
         break;
       }
       Some("--check") => check = true,
-      Some(flag @ ("--line-width" | "--text-wrap" | "--emphasis" | "--strong")) => {
+      Some(flag @ ("--line-width" | "--text-wrap" | "--emphasis" | "--strong" | "--excludes")) => {
         let value = args
           .next()
           .context(format!("{flag} requires a value"))?
@@ -36,7 +121,8 @@ fn run() -> Result<u8> {
           "--line-width" => width = value.parse().context("line width must be an integer")?,
           "--text-wrap" => wrap = value,
           "--emphasis" => emphasis = value,
-          _ => strong = value,
+          "--strong" => strong = value,
+          _ => excludes.push(value),
         }
       }
       Some(s) if s.starts_with('-') && s != "-" => bail!("unknown option {s}; use --help"),
@@ -48,6 +134,11 @@ fn run() -> Result<u8> {
   if !stdin && files.iter().any(|f| f == "-") {
     bail!("stdin (-) cannot be combined with files");
   }
+  let files = if stdin {
+    Vec::new()
+  } else {
+    collect_files(files, &excludes)?
+  };
   let mut changed = false;
   if stdin {
     let mut input = String::new();

@@ -8,7 +8,7 @@ Japanese-aware Markdown formatting as a native CLI and an Android-ready JNI libr
 
 Run the commands below from `formatter/`. Build outputs and the lockfile are shared with the parent workspace. Its default member remains the Wasm plugin. Use `--profile formatter-release` for native release builds: ordinary `--release` inherits the plugin's `panic=abort` and is deliberately rejected by the JNI adapter.
 
-Defaults: line width **80**, text wrap **never**, emphasis **underscores**, strong **asterisks**. Other upstream defaults apply (including LF). Width must be 1..10000. Supported options are deliberately limited to these four rather than exposing an unversioned configuration JSON interface.
+Defaults: line width **80**, text wrap **never**, emphasis **underscores**, strong **asterisks**, and table formatting disabled (`skipTableFormatting: true`). Other upstream defaults apply (including LF). Width must be 1..10000. Supported options are deliberately limited to these four rather than exposing an unversioned configuration JSON interface.
 
 ```rust
 use dprint_markdown_ja_formatter::Formatter;
@@ -30,12 +30,18 @@ Install rustup and a platform C linker, then:
 cargo build --profile formatter-release --locked
 printf '日本語English *text*' | ../target/formatter-release/dprint-markdown-ja-formatter
 ../target/formatter-release/dprint-markdown-ja-formatter README.md notes.md
+../target/formatter-release/dprint-markdown-ja-formatter .
 ../target/formatter-release/dprint-markdown-ja-formatter --check README.md notes.md
+../target/formatter-release/dprint-markdown-ja-formatter --excludes 'generated/**' .
 ../target/formatter-release/dprint-markdown-ja-formatter --text-wrap always --line-width 60 < input.md
 ../target/formatter-release/dprint-markdown-ja-formatter --help
 ```
 
-No paths, or a single `-`, reads UTF-8 stdin and writes stdout. Paths are updated in place; use `--` before names beginning with `-`. Stdin cannot be mixed with paths. `--check` writes no formatted text, reports changed paths on stderr, and exits **1** on differences, **0** if clean. Invalid arguments, UTF-8, formatting, or I/O errors exit **2** with a diagnostic. There is no recursive file discovery.
+No paths, or a single `-`, reads UTF-8 stdin and writes stdout. File paths are updated in place; use `--` before names beginning with `-`. Directory paths are searched recursively for the same extensions as the dprint plugin (`md`, `mkd`, `mdwn`, `mkdn`, `mdown`, and `markdown`). Explicit file paths retain the existing behavior and do not require one of these extensions. Stdin cannot be mixed with paths.
+
+Directory discovery and explicit files exclude `**/node_modules` and `**/*-lock.json` by default. Repeat `--excludes GLOB` to add gitignore-style patterns; patterns are matched relative to the current directory and later negated patterns can re-include an earlier exclusion. This is the native equivalent of the standalone formatter's intended dprint defaults. The native binary already contains the markdown-ja formatter, so it does not load the Wasm `plugins` list or provide JSON formatting. It deliberately does not read `dprint.json` or `.gitignore`.
+
+`--check` writes no formatted text, reports changed paths on stderr, and exits **1** on differences, **0** if clean. Invalid arguments, patterns, UTF-8, formatting, or I/O errors exit **2** with a diagnostic.
 
 Changed files are written to a temporary file in the same directory and atomically renamed over the target, preserving permissions and following symlinks. This needs directory write permission, replaces the inode (other hard links are not updated), and does not preserve ownership, ACLs, or extended attributes. Multi-file runs are not transactions; earlier successful writes remain if a later file fails. Avoid concurrent editors; files are not locked. Unchanged files are not rewritten.
 

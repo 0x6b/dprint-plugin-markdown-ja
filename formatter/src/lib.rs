@@ -21,6 +21,7 @@ impl Default for Formatter {
         .text_wrap(TextWrap::Never)
         .emphasis_kind(EmphasisKind::Underscores)
         .strong_kind(StrongKind::Asterisks)
+        .skip_table_formatting(true)
         .build(),
     )
   }
@@ -46,6 +47,7 @@ impl Formatter {
         .text_wrap(wrap)
         .emphasis_kind(emphasis)
         .strong_kind(strong)
+        .skip_table_formatting(true)
         .build(),
     ))
   }
