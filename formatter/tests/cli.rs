@@ -82,11 +82,13 @@ fn files_check_then_write_then_check() {
 }
 
 #[test]
-fn directories_use_markdown_associations_and_excludes() {
+fn directories_route_supported_extensions_and_apply_excludes() {
   let dir = tempfile::tempdir().unwrap();
   for (path, contents) in [
     ("README.md", "*root*"),
     ("docs/guide.markdown", "*guide*"),
+    ("config.json", "{\"enabled\":true,\"count\":2}"),
+    ("settings.jsonc", "{// keep this comment\n\"enabled\":true}"),
     ("docs/generated.md", "*generated*"),
     ("node_modules/root.md", "*dependency*"),
     ("docs/node_modules/nested.md", "*nested dependency*"),
@@ -104,6 +106,14 @@ fn directories_use_markdown_associations_and_excludes() {
   assert_eq!(
     fs::read_to_string(dir.path().join("docs/guide.markdown")).unwrap(),
     "_guide_\n"
+  );
+  assert_eq!(
+    fs::read_to_string(dir.path().join("config.json")).unwrap(),
+    "{ \"enabled\": true, \"count\": 2 }\n"
+  );
+  assert_eq!(
+    fs::read_to_string(dir.path().join("settings.jsonc")).unwrap(),
+    "{ // keep this comment\n  \"enabled\": true\n}\n"
   );
   for path in [
     "docs/generated.md",

@@ -150,6 +150,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "dprint-core"
+version = "0.68.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ace8a07022e292c498f9568c6859f73e40721fa18c4c0760cdc56220f4b99040"
+dependencies = [
+ "bumpalo",
+ "hashbrown 0.15.5",
+ "indexmap",
+ "rustc-hash",
+ "serde",
+ "unicode-width 0.2.2",
+]
+
+[[package]]
 name = "dprint-core-macros"
 version = "0.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -177,6 +191,7 @@ name = "dprint-markdown-ja-formatter"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "dprint-plugin-json",
  "dprint-plugin-markdown-ja",
  "ignore",
  "jni",
@@ -184,11 +199,25 @@ dependencies = [
 ]
 
 [[package]]
+name = "dprint-plugin-json"
+version = "0.23.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1d6ea7c6e725594aef11d5c74e3c20a253b06cd2384c652aadf8baf09c276e97"
+dependencies = [
+ "dprint-core 0.68.5",
+ "dprint-core-macros",
+ "jsonc-parser",
+ "serde",
+ "text_lines",
+ "thiserror 2.0.18",
+]
+
+[[package]]
 name = "dprint-plugin-markdown-ja"
 version = "0.6.1"
 dependencies = [
  "anyhow",
- "dprint-core",
+ "dprint-core 0.67.4",
  "dprint-core-macros",
  "dprint-development",
  "pulldown-cmark",
@@ -370,6 +399,15 @@ checksum = "38c0b942f458fe50cdac086d2f946512305e5631e720728f2a61aabcd47a6264"
 dependencies = [
  "quote",
  "syn 2.0.117",
+]
+
+[[package]]
+name = "jsonc-parser"
+version = "0.33.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9ff5a48f48971be8e762a6ff955725a0802b6e46c441057992da5a673db9fd3a"
+dependencies = [
+ "unicode-width 0.2.2",
 ]
 
 [[package]]
@@ -660,6 +698,12 @@ checksum = "06794f8f6c5c898b3275aebefa6b8a1cb24cd2c6c79397ab15774837a0bc5755"
 dependencies = [
  "winapi-util",
 ]
+
+[[package]]
+name = "text_lines"
+version = "0.6.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7fd5828de7deaa782e1dd713006ae96b3bee32d3279b79eb67ecf8072c059bcf"
 
 [[package]]
 name = "thiserror"

@@ -11,6 +11,7 @@ crate-type = ["rlib", "cdylib"]
 
 [dependencies]
 anyhow = "1.0"
+dprint-plugin-json = "=0.23.0"
 dprint-plugin-markdown-ja = { path = "..", version = "=0.6.1" }
 ignore = "0.4"
 jni = "0.21.1"

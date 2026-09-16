@@ -1,5 +1,8 @@
 use anyhow::{Context, Result, bail};
 use dprint_markdown_ja_formatter::Formatter;
+use dprint_plugin_json::configuration::{
+  Configuration as JsonConfiguration, ConfigurationBuilder as JsonConfigurationBuilder,
+};
 use ignore::{WalkBuilder, gitignore::GitignoreBuilder};
 use std::{
   borrow::Cow,
@@ -11,7 +14,7 @@ use std::{
   process::ExitCode,
 };
 
-const HELP: &str = "dprint-markdown-ja-formatter [OPTIONS] [PATH ...]\n\nNo paths (or a single -): UTF-8 stdin to stdout. Files are updated in place.\nDirectories are searched recursively for Markdown files.\n  --check                 Do not write; exit 1 if formatting differs\n  --line-width N          1..10000 (default 80)\n  --text-wrap MODE        never (default), maintain, always\n  --emphasis KIND         underscores (default), asterisks\n  --strong KIND           asterisks (default), underscores\n  --excludes GLOB         Add a gitignore-style exclusion (repeatable)\n                          Defaults: **/node_modules, **/*-lock.json\n  --                      End options\n  -h, --help              Show help\nExit status: 0 success, 1 check differences, 2 error.\n";
+const HELP: &str = "dprint-markdown-ja-formatter [OPTIONS] [PATH ...]\n\nNo paths (or a single -): UTF-8 Markdown stdin to stdout. Files are updated in place.\nDirectories are searched recursively for Markdown, JSON, and JSONC files.\n  --check                 Do not write; exit 1 if formatting differs\n  --line-width N          Markdown: 1..10000 (default 80)\n  --text-wrap MODE        Markdown: never (default), maintain, always\n  --emphasis KIND         Markdown: underscores (default), asterisks\n  --strong KIND           Markdown: asterisks (default), underscores\n  --excludes GLOB         Add a gitignore-style exclusion (repeatable)\n                          Defaults: **/node_modules, **/*-lock.json\n  --                      End options\n  -h, --help              Show help\nExit status: 0 success, 1 check differences, 2 error.\n";
 
 const DEFAULT_EXCLUDES: &[&str] = &["**/node_modules", "**/*-lock.json"];
 const MARKDOWN_EXTENSIONS: &[&str] = &["md", "mkd", "mdwn", "mkdn", "mdown", "markdown"];
@@ -73,7 +76,7 @@ fn collect_files(paths: Vec<OsString>, excludes: &[String]) -> Result<Vec<PathBu
     });
     for entry in walker.build() {
       let entry = entry.with_context(|| format!("walking {}", path.display()))?;
-      if !entry.file_type().is_some_and(|kind| kind.is_file()) || !is_markdown(entry.path()) {
+      if !entry.file_type().is_some_and(|kind| kind.is_file()) || !is_supported(entry.path()) {
         continue;
       }
       let canonical = fs::canonicalize(entry.path())?;
@@ -91,6 +94,33 @@ fn is_markdown(path: &Path) -> bool {
     .extension()
     .and_then(|extension| extension.to_str())
     .is_some_and(|extension| MARKDOWN_EXTENSIONS.contains(&extension))
+}
+
+fn is_json(path: &Path) -> bool {
+  path
+    .extension()
+    .and_then(|extension| extension.to_str())
+    .is_some_and(|extension| matches!(extension, "json" | "jsonc"))
+}
+
+fn is_supported(path: &Path) -> bool {
+  is_markdown(path) || is_json(path)
+}
+
+fn format_file<'a>(
+  path: &Path,
+  input: &'a str,
+  markdown: &Formatter,
+  json: &JsonConfiguration,
+) -> Result<Cow<'a, str>> {
+  if is_json(path) {
+    Ok(match dprint_plugin_json::format_text(path, input, json)? {
+      Some(output) => Cow::Owned(output),
+      None => Cow::Borrowed(input),
+    })
+  } else {
+    markdown.format(input)
+  }
 }
 
 fn run() -> Result<u8> {
@@ -129,7 +159,8 @@ fn run() -> Result<u8> {
       _ => files.push(arg),
     }
   }
-  let formatter = Formatter::new(width, &wrap, &emphasis, &strong)?;
+  let markdown_formatter = Formatter::new(width, &wrap, &emphasis, &strong)?;
+  let json_formatter = JsonConfigurationBuilder::new().build();
   let stdin = files.is_empty() || (files.len() == 1 && files[0] == "-");
   if !stdin && files.iter().any(|f| f == "-") {
     bail!("stdin (-) cannot be combined with files");
@@ -143,7 +174,7 @@ fn run() -> Result<u8> {
   if stdin {
     let mut input = String::new();
     io::stdin().read_to_string(&mut input).context("reading UTF-8 stdin")?;
-    let output = formatter.format(&input)?;
+    let output = markdown_formatter.format(&input)?;
     changed = output != input;
     if !check {
       io::stdout().lock().write_all(output.as_bytes())?;
@@ -152,8 +183,7 @@ fn run() -> Result<u8> {
     for file in files {
       let path = std::path::Path::new(&file);
       let input = fs::read_to_string(path).with_context(|| format!("reading {}", path.display()))?;
-      let output = formatter
-        .format(&input)
+      let output = format_file(path, &input, &markdown_formatter, &json_formatter)
         .with_context(|| format!("formatting {}", path.display()))?;
       if output != input {
         changed = true;
