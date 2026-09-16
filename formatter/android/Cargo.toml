@@ -1,0 +1,17 @@
+[package]
+name = "dprint-markdown-ja-formatter-android"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.92"
+license = "MIT"
+description = "Android JNI adapter for Japanese-aware Markdown formatting"
+publish = false
+
+[lib]
+name = "dprint_markdown_ja_formatter"
+crate-type = ["cdylib"]
+
+[dependencies]
+anyhow = "1.0"
+dprint-markdown-ja-formatter-core = { path = "../core", version = "=0.1.0" }
+jni = "0.21.1"

@@ -1,14 +1,10 @@
 //! Shared, safe formatting API. Adapters only handle transport and errors.
-#[cfg(panic = "abort")]
-compile_error!("JNI requires panic=unwind; use --profile formatter-release instead of --release");
 
 use std::borrow::Cow;
 
 use anyhow::{Result, ensure};
 use dprint_plugin_markdown_ja::configuration::{Configuration, ConfigurationBuilder};
 pub use dprint_plugin_markdown_ja::configuration::{EmphasisKind, StrongKind, TextWrap};
-
-mod jni;
 
 /// Reusable immutable formatter; calls have no shared mutable state.
 pub struct Formatter(Configuration);

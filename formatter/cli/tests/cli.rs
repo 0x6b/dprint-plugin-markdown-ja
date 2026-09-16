@@ -1,6 +1,7 @@
 use std::{
   fs,
   io::Write,
+  path::Path,
   process::{Command, Stdio},
 };
 
@@ -8,7 +9,7 @@ fn run(args: &[&str], input: &[u8]) -> std::process::Output {
   run_in(args, input, None)
 }
 
-fn run_in(args: &[&str], input: &[u8], current_dir: Option<&std::path::Path>) -> std::process::Output {
+fn run_in(args: &[&str], input: &[u8], current_dir: Option<&Path>) -> std::process::Output {
   let mut command = Command::new(env!("CARGO_BIN_EXE_dprint-markdown-ja-formatter"));
   command
     .args(args)

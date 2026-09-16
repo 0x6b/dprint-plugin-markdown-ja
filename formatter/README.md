@@ -4,14 +4,14 @@ Japanese-aware Markdown formatting as a native CLI and an Android-ready JNI libr
 
 ## Architecture and formatting contract
 
-`src/lib.rs` owns the safe, reusable `Formatter` API and configuration validation. The CLI (`src/main.rs`) handles arguments and I/O; JNI (`src/jni.rs`) handles strings and Java exceptions. Both statically link the parent **dprint-plugin-markdown-ja v0.6.1** package through a local path dependency. The repository revision pins both implementations together; the migration baseline is [this commit](https://github.com/0x6b/dprint-plugin-markdown-ja/commit/786296fde0c665b1bf4a1409bee1c649f50989c4). The root `rust-toolchain.toml` pins Rust **1.92.0** and root `Cargo.lock` pins transitive dependencies. Use `--locked` in builds. No plugin WASM feature is enabled.
+The implementation is split into three workspace packages. `core` owns the safe, reusable `Formatter` API and configuration validation. `cli` handles file discovery, Markdown/JSON routing, arguments, and I/O. `android` owns only JNI transport and the Android `cdylib`; it does not depend on the CLI's JSON, glob, or filesystem crates. Both adapters depend on core, which statically links the parent **dprint-plugin-markdown-ja v0.6.1** package. The repository revision pins the implementations together; the migration baseline is [this commit](https://github.com/0x6b/dprint-plugin-markdown-ja/commit/786296fde0c665b1bf4a1409bee1c649f50989c4). The root `rust-toolchain.toml` pins Rust **1.92.0** and root `Cargo.lock` pins transitive dependencies. Use `--locked` in builds. No plugin WASM feature is enabled.
 
 Run the commands below from `formatter/`. Build outputs and the lockfile are shared with the parent workspace. Its default member remains the Wasm plugin. Use `--profile formatter-release` for native release builds: ordinary `--release` inherits the plugin's `panic=abort` and is deliberately rejected by the JNI adapter.
 
 Defaults: line width **80**, text wrap **never**, emphasis **underscores**, strong **asterisks**, and table formatting disabled (`skipTableFormatting: true`). Other upstream defaults apply (including LF). Width must be 1..10000. Supported options are deliberately limited to these four rather than exposing an unversioned configuration JSON interface.
 
 ```rust
-use dprint_markdown_ja_formatter::Formatter;
+use dprint_markdown_ja_formatter_core::Formatter;
 let formatter = Formatter::default();
 let output = formatter.format("日本語English *text*")?;
 assert_eq!(output, "日本語 English _text_\n");
@@ -27,7 +27,7 @@ assert_eq!(output, "日本語 English _text_\n");
 Install rustup and a platform C linker, then:
 
 ```sh
-cargo build --profile formatter-release --locked
+cargo build -p dprint-markdown-ja-formatter-cli --profile formatter-release --locked
 printf '日本語English *text*' | ../target/formatter-release/dprint-markdown-ja-formatter
 ../target/formatter-release/dprint-markdown-ja-formatter README.md notes.md
 ../target/formatter-release/dprint-markdown-ja-formatter .
@@ -122,13 +122,13 @@ For reproducing profile alternatives, use `CARGO_PROFILE_FORMATTER_RELEASE_CODEG
 ## Verification and licenses
 
 ```sh
-cargo fmt -p dprint-markdown-ja-formatter -- --check
-cargo clippy --locked --all-targets -- -D warnings
-cargo test --locked
+cargo fmt --all -- --check
+cargo clippy --locked -p dprint-markdown-ja-formatter-core -p dprint-markdown-ja-formatter-cli -p dprint-markdown-ja-formatter-android --all-targets -- -D warnings
+cargo test --locked --workspace
 bash scripts/test-jvm.sh
 ```
 
-Tests distinguish Japanese/Latin spacing, wrapping and marker options, borrowed unchanged output, upstream fence/container normalization, CLI check statuses and errors, Java Unicode and invalid arguments, and 4,000 concurrent/repeated JNI calls with `-Xcheck:jni`.
+Tests distinguish Japanese/Latin spacing, wrapping and marker options, borrowed unchanged output, upstream fence/container normalization, CLI Markdown/JSON routing, check statuses and errors, Java Unicode and invalid arguments, and 4,000 concurrent/repeated JNI calls with `-Xcheck:jni`.
 
 Migration verification also passed workspace tests (including 75 plugin specs), workspace rustfmt, formatter Clippy with warnings denied, native optimized-profile tests, debug and optimized real JVM tests, and the Android AAR ELF checks. Workspace-wide Clippy still reports the pre-existing `unnecessary_get_then_check` in the plugin test at `src/configuration/builder.rs:210`. The rebuilt Wasm has the identical SHA-256 below; the stock comparison was repeated against it successfully. No Android device tests were run in this orb.
 
@@ -137,7 +137,7 @@ The optional stock comparison test was also executed: stock dprint **0.57.4** ma
 ```sh
 DPRINT_BIN=/absolute/path/to/dprint-0.57.4 \
 MARKDOWN_JA_WASM=/absolute/path/to/dprint_plugin_markdown_ja.wasm \
-cargo test --locked --test core stock_dprint_parity -- --ignored
+cargo test --locked -p dprint-markdown-ja-formatter-core --test core stock_dprint_parity -- --ignored
 ```
 
-This adapter is MIT licensed. The upstream plugin is MIT, copyright **2024 0x6b** and **2020–2023 David Sherret**. Full dependency notices are generated from locked Cargo sources, not checked into Git. The AAR build automatically regenerates `../target/THIRD_PARTY_NOTICES.md` and bundles it alongside `LICENSE`; generation failure stops packaging. For standalone CLI/JNI distribution, run `python3 scripts/license-notices.py`, review the generated notices, and redistribute them and `LICENSE` alongside the binaries. The generator requires Python 3 and covers Linux x86-64 and Android ARM64 (including build dependencies); regenerate/extend the platform set when distributing other targets.
+These adapters are MIT licensed. The upstream plugin is MIT, copyright **2024 0x6b** and **2020–2023 David Sherret**. Full dependency notices are generated from locked Cargo sources, not checked into Git. The AAR build automatically generates Android-only notices in `../target/THIRD_PARTY_NOTICES.md` and bundles them alongside `LICENSE`; generation failure stops packaging. For standalone CLI distribution, run `python3 scripts/license-notices.py dprint-markdown-ja-formatter-cli`, review the generated notices, and redistribute them and `LICENSE` alongside the binary. The generator requires Python 3 and covers Linux x86-64 and Android ARM64 (including build dependencies); regenerate/extend the platform set when distributing other targets.

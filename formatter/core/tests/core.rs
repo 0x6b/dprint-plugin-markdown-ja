@@ -1,4 +1,4 @@
-use dprint_markdown_ja_formatter::Formatter;
+use dprint_markdown_ja_formatter_core::Formatter;
 use std::borrow::Cow;
 
 #[test]
