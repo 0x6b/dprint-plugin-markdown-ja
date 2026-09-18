@@ -1,0 +1,43 @@
+name: aar
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - '*'
+
+permissions:
+  contents: read
+
+jobs:
+  aar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: dsherret/rust-toolchain-file@3551321aa44dd44a0393eb3b6bdfbc5d25ecf621 # v1
+      - uses: actions/setup-java@cf277c60eb25467037889841efdb72551f06f6c3 # v4.9.1
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: android-actions/setup-android@9fc6c4e9069bf8d3d10b2204b1fb8f6ef7065407 # v3.2.2
+      - name: Install Android NDK
+        run: |
+          sdkmanager 'ndk;28.2.13676358'
+          echo "ANDROID_NDK_HOME=$ANDROID_HOME/ndk/28.2.13676358" >> "$GITHUB_ENV"
+      - name: Build AAR
+        run: bash formatter/scripts/build-aar.sh
+      - name: Check packaged AAR
+        run: python3 formatter/scripts/check-aar.py "$ANDROID_NDK_HOME/toolchains/llvm/prebuilt/linux-x86_64/bin"
+      - name: Add AAR to GitHub Release
+        if: github.event_name == 'push'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
+            gh release upload "$GITHUB_REF_NAME" target/dprint-markdown-ja-formatter.aar --clobber
+          else
+            gh release create "$GITHUB_REF_NAME" target/dprint-markdown-ja-formatter.aar --verify-tag --generate-notes
+          fi
