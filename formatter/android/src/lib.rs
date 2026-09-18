@@ -1,4 +1,7 @@
-use crate::Formatter;
+#[cfg(panic = "abort")]
+compile_error!("JNI requires panic=unwind; use --profile formatter-release instead of --release");
+
+use dprint_markdown_ja_formatter_core::Formatter;
 use jni::{
   JNIEnv, JavaVM, NativeMethod,
   objects::{JClass, JString},

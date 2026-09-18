@@ -1,0 +1,15 @@
+[package]
+name = "dprint-markdown-ja-formatter-core"
+version = "0.6.1"
+edition = "2024"
+rust-version = "1.92"
+license = "MIT"
+description = "Native Japanese-aware Markdown formatting API"
+publish = false
+
+[dependencies]
+anyhow = "1.0"
+dprint-plugin-markdown-ja = { path = "../..", version = "=0.6.1" }
+
+[dev-dependencies]
+tempfile = "3.23"

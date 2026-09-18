@@ -12,7 +12,7 @@ The plugin will insert a space between a Japanese character and a non-Japanese c
 
 The plugin will also replace the following characters with their half-width counterparts:
 
-- `＂＃＄％＆＇（），．／０１２３４５６７８９：；＜＝＞＠ＡＢＣＤＥＦＧＨＩＪＫＬＭＮＯＰＱＲＳＴＵＶＷＸＹＺ＼＾｀ａｂｃｄｅｆｇｈｉｊｋｌｍｎｏｐｑｒｓｔｕｖｗｘｙｚ｛｜｝` and full-width whitespace `　`.
+- `＂＃＄％＆＇（），．／０１２３４５６７８９：；＜＝＞＠ＡＢＣＤＥＦＧＨＩＪＫＬＭＮＯＰＱＲＳＴＵＶＷＸＹＺ＼＾｀ａｂｃｄｅｆｇｈｉｊｋｌｍｎｏｐｑｒｓｔｕｖｗｘｙｚ｛｜｝` and the ideographic space (`U+3000`, rendered as <code>&#x3000;</code>).
 
 See the [Japanese text specs](tests/specs/Text) for how the plugin will work.
 
@@ -92,11 +92,7 @@ There are no additional configuration options specific to this plugin, but the c
 
 ## Standalone CLI and Android JNI
 
-The [formatter](formatter/README.md) workspace member provides a native CLI and
-an Android ARM64 AAR using this plugin directly, without a dprint process or Wasm
-runtime. Build it with `cargo build --locked -p dprint-markdown-ja-formatter --profile formatter-release`.
-The default workspace member remains the plugin; existing Wasm release commands
-are unchanged. The separate formatter profile preserves JNI panic unwinding.
+The [formatter](formatter/README.md) workspace packages provide a native CLI and an Android ARM64 AAR using this plugin directly, without a dprint process or Wasm runtime. Build the CLI with `cargo build --locked -p dprint-markdown-ja-formatter-cli --profile formatter-release`. The default workspace member remains the plugin; existing Wasm release commands are unchanged. The separate formatter profile preserves JNI panic unwinding.
 
 ## License
 

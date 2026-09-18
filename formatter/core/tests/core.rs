@@ -1,4 +1,4 @@
-use dprint_markdown_ja_formatter::Formatter;
+use dprint_markdown_ja_formatter_core::Formatter;
 use std::borrow::Cow;
 
 #[test]
@@ -9,6 +9,12 @@ fn japanese_spacing_and_defaults() {
       .unwrap(),
     "日本語 English 日本語 Latin words\n\n_emphasis_ **strong**\n"
   );
+}
+
+#[test]
+fn table_formatting_is_skipped_by_default() {
+  let input = "Name|Value\n--|--:\n日本語|English\n";
+  assert!(matches!(Formatter::default().format(input).unwrap(), Cow::Borrowed(_)));
 }
 
 #[test]

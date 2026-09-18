@@ -14,7 +14,7 @@ export AR_aarch64_linux_android="$toolchain/llvm-ar"
 # Explicit 16 KiB ELF alignment for current Android devices.
 export CARGO_TARGET_AARCH64_LINUX_ANDROID_RUSTFLAGS="-C link-arg=-Wl,-z,max-page-size=16384"
 rustup target add --toolchain 1.92.0 aarch64-linux-android
-cargo build --locked -p dprint-markdown-ja-formatter --profile formatter-release --lib --target aarch64-linux-android --target-dir ../target
+cargo build --locked -p dprint-markdown-ja-formatter-android --profile formatter-release --lib --target aarch64-linux-android --target-dir ../target
 stage=../target/aar-stage
 rm -rf "$stage"
 mkdir -p "$stage/jni/arm64-v8a" "$stage/classes" "$stage/META-INF"
@@ -28,7 +28,7 @@ cp ../target/aarch64-linux-android/formatter-release/libdprint_markdown_ja_forma
 "$toolchain/llvm-strip" --strip-unneeded "$stage/jni/arm64-v8a/libdprint_markdown_ja_formatter.so"
 cp android/AndroidManifest.xml "$stage/"
 cp android/consumer-rules.pro "$stage/proguard.txt"
-python3 scripts/license-notices.py
+python3 scripts/license-notices.py dprint-markdown-ja-formatter-android
 cp LICENSE ../target/THIRD_PARTY_NOTICES.md "$stage/META-INF/"
 jar cf ../target/dprint-markdown-ja-formatter.aar -C "$stage" .
 wc -c ../target/aarch64-linux-android/formatter-release/libdprint_markdown_ja_formatter.so \
