@@ -33,13 +33,16 @@ jobs:
         run: bash formatter/scripts/build-aar.sh
       - name: Check packaged AAR
         run: python3 formatter/scripts/check-aar.py "$ANDROID_NDK_HOME/toolchains/llvm/prebuilt/linux-x86_64/bin"
-      - name: Add AAR to GitHub Release
+      - name: Generate checksum
+        run: cd target && sha256sum dprint-markdown-ja-formatter.aar > dprint-markdown-ja-formatter.aar.sha256
+      - name: Add AAR and checksum to GitHub Release
         if: github.event_name == 'push'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
+          assets=(target/dprint-markdown-ja-formatter.aar{,.sha256})
           if gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
-            gh release upload "$GITHUB_REF_NAME" target/dprint-markdown-ja-formatter.aar --clobber
+            gh release upload "$GITHUB_REF_NAME" "${assets[@]}" --clobber
           else
-            gh release create "$GITHUB_REF_NAME" target/dprint-markdown-ja-formatter.aar --verify-tag --generate-notes
+            gh release create "$GITHUB_REF_NAME" "${assets[@]}" --verify-tag --generate-notes
           fi
