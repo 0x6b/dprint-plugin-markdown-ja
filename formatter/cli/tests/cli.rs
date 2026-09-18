@@ -44,6 +44,9 @@ fn stdin_and_check_status() {
     assert_eq!(run(&args, b"").status.code(), Some(2));
   }
   assert!(run(&["--help"], b"").status.success());
+  let result = run(&["--version"], b"");
+  assert!(result.status.success());
+  assert_eq!(result.stdout, b"dprint-markdown-ja-formatter 0.6.1\n");
   let result = run(
     &[
       "--line-width",

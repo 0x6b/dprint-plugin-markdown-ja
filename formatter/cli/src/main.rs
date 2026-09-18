@@ -16,6 +16,8 @@ use std::{
 
 #[derive(Parser)]
 #[command(
+  name = "dprint-markdown-ja-formatter",
+  version,
   about = "Format Markdown, JSON, and JSONC files",
   after_help = "No paths (or a single -) reads UTF-8 Markdown from stdin.\nExit status: 0 success, 1 check differences, 2 error."
 )]
