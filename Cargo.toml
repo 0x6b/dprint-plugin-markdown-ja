@@ -1,5 +1,5 @@
 [workspace]
-members = ["formatter/android", "formatter/cli", "formatter/core"]
+members = ["formatter/android", "formatter/cli", "formatter/core", "formatter/mcp"]
 default-members = ["."]
 resolver = "2"
 

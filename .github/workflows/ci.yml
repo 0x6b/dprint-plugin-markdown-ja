@@ -21,7 +21,7 @@ jobs:
       - name: Rust formatting
         run: cargo fmt --all -- --check
       - name: Formatter lint
-        run: cargo clippy --locked -p dprint-markdown-ja-formatter-core -p dprint-markdown-ja-formatter-cli -p dprint-markdown-ja-formatter-android --all-targets -- -D warnings
+        run: cargo clippy --locked -p dprint-markdown-ja-formatter-core -p dprint-markdown-ja-formatter-cli -p dprint-markdown-ja-formatter-mcp -p dprint-markdown-ja-formatter-android --all-targets -- -D warnings
       - name: Workspace tests
         run: cargo test --locked --workspace
       - name: Host JNI integration
