@@ -1,10 +1,10 @@
 # dprint-markdown-ja-formatter
 
-Japanese-aware Markdown formatting as a native CLI and an Android-ready JNI library. This standalone project has no dependency on Entry or a dprint process, WASM runtime, network service, or consuming application's package name.
+Japanese-aware Markdown formatting as a native CLI, a Streamable HTTP MCP service, and an Android-ready JNI library. These adapters have no dependency on Entry, a dprint process, a WASM runtime, or a consuming application's package name.
 
 ## Architecture and formatting contract
 
-The implementation is split into three workspace packages. `core` owns the safe, reusable `Formatter` API and configuration validation. `cli` handles file discovery, Markdown/JSON routing, arguments, and I/O. `android` owns only JNI transport and the Android `cdylib`; it does not depend on the CLI's JSON, glob, or filesystem crates. Both adapters depend on core, which statically links the parent **dprint-plugin-markdown-ja v0.6.1** package. The repository revision pins the implementations together; the migration baseline is [this commit](https://github.com/0x6b/dprint-plugin-markdown-ja/commit/786296fde0c665b1bf4a1409bee1c649f50989c4). The root `rust-toolchain.toml` pins Rust **1.92.0** and root `Cargo.lock` pins transitive dependencies. Use `--locked` in builds. No plugin WASM feature is enabled.
+The implementation is split into four workspace packages. `core` owns the safe, reusable `Formatter` API and configuration validation. `cli` handles file discovery, Markdown/JSON routing, arguments, and I/O. `mcp` owns only the remote Streamable HTTP transport and its runtime limits. `android` owns only JNI transport and the Android `cdylib`; it does not depend on the CLI's JSON, glob, or filesystem crates. All adapters depend on core, which statically links the parent **dprint-plugin-markdown-ja v0.6.1** package. The repository revision pins the implementations together; the migration baseline is [this commit](https://github.com/0x6b/dprint-plugin-markdown-ja/commit/786296fde0c665b1bf4a1409bee1c649f50989c4). The root `rust-toolchain.toml` pins Rust **1.92.0** and root `Cargo.lock` pins transitive dependencies. Use `--locked` in builds. No plugin WASM feature is enabled.
 
 Run the commands below from `formatter/`. Build outputs and the lockfile are shared with the parent workspace. Its default member remains the Wasm plugin. Use `--profile formatter-release` for native release builds: ordinary `--release` inherits the plugin's `panic=abort` and is deliberately rejected by the JNI adapter.
 
@@ -44,6 +44,71 @@ Directory discovery and explicit files exclude `**/node_modules` and `**/*-lock.
 `--check` writes no formatted text, reports changed paths on stderr, and exits **1** on differences, **0** if clean. Invalid arguments, patterns, UTF-8, formatting, or I/O errors exit **2** with a diagnostic.
 
 Changed files are written to a temporary file in the same directory and atomically renamed over the target, preserving permissions and following symlinks. This needs directory write permission, replaces the inode (other hard links are not updated), and does not preserve ownership, ACLs, or extended attributes. Multi-file runs are not transactions; earlier successful writes remain if a later file fails. Avoid concurrent editors; files are not locked. Unchanged files are not rewritten.
+
+## Streamable HTTP MCP server
+
+The independent `dprint-markdown-ja-formatter-mcp` binary exposes the shared core formatter as one remote, text-only MCP tool. It does not change the CLI's stdin/stdout contract, accept file paths, read or write files, or log Markdown bodies. OAuth and TLS are deliberately outside this backend and should be supplied by the gateway or authentication proxy.
+
+Run locally:
+
+```sh
+cargo run --locked -p dprint-markdown-ja-formatter-mcp -- --listen 127.0.0.1:3000
+```
+
+The endpoints are:
+
+- `POST /mcp`: Streamable HTTP MCP, with the `format_markdown` tool.
+- `GET /healthz`: returns `200 OK` and `ok`; this is a process liveness/readiness check.
+
+`format_markdown` accepts `markdown` plus optional `lineWidth`, `textWrap`, `emphasis`, and `strong` fields matching the core/CLI options. It returns structured `{ "markdown": string, "changed": boolean }` content. Defaults remain width 80, wrapping `never`, emphasis `underscores`, and strong `asterisks`.
+
+The default listener is loopback-only. A non-loopback listener is rejected unless at least one exact Host authority is allowed. Repeat `--allowed-host` for the service name with and without its port, according to the authority sent by the upstream gateway:
+
+```sh
+cargo run --locked -p dprint-markdown-ja-formatter-mcp -- \
+  --listen 0.0.0.0:3000 \
+  --allowed-host markdown \
+  --allowed-host markdown:3000
+```
+
+MCP requests carrying an `Origin` header are rejected. Requests without `Origin`, as sent by a cluster-local gateway, are accepted when their Host matches. `/healthz` is outside these MCP checks so Kubernetes probes can use the Pod IP. The MCP JSON body limit defaults to 1 MiB, formatting to 10 seconds, and concurrent formatting calls to four; tune them with `--max-request-bytes`, `--timeout-seconds`, and `--max-concurrency`. Timed-out blocking work retains its concurrency permit until it actually exits.
+
+Build the standalone multi-stage image from the repository root. The base images support both AMD64 and ARM64; `buildx` selects the requested native target:
+
+```sh
+docker buildx build --platform linux/arm64 --load \
+  -f formatter/mcp/Dockerfile \
+  -t dprint-markdown-ja-formatter-mcp:0.6.1 .
+```
+
+The distroless runtime runs as non-root and writes no state, so use a read-only root filesystem. Its default Host allowlist is only for direct `localhost:3000` access. Kubernetes must replace the image arguments with its Service authorities:
+
+```yaml
+containers:
+  - name: markdown
+    image: dprint-markdown-ja-formatter-mcp:0.6.1
+    args:
+      - --listen
+      - 0.0.0.0:3000
+      - --allowed-host
+      - markdown
+      - --allowed-host
+      - markdown:3000
+    securityContext:
+      runAsNonRoot: true
+      readOnlyRootFilesystem: true
+      allowPrivilegeEscalation: false
+      capabilities:
+        drop: ["ALL"]
+```
+
+For agentgateway v1.5.0 with `prefixMode: always`, register the cluster-local backend as follows; clients then see `markdown_format_markdown` through the public gateway endpoint:
+
+```yaml
+- name: markdown
+  mcp:
+    host: http://markdown:3000/mcp
+```
 
 ## Java and Kotlin / host JNI
 
@@ -123,12 +188,12 @@ For reproducing profile alternatives, use `CARGO_PROFILE_FORMATTER_RELEASE_CODEG
 
 ```sh
 cargo fmt --all -- --check
-cargo clippy --locked -p dprint-markdown-ja-formatter-core -p dprint-markdown-ja-formatter-cli -p dprint-markdown-ja-formatter-android --all-targets -- -D warnings
+cargo clippy --locked -p dprint-markdown-ja-formatter-core -p dprint-markdown-ja-formatter-cli -p dprint-markdown-ja-formatter-mcp -p dprint-markdown-ja-formatter-android --all-targets -- -D warnings
 cargo test --locked --workspace
 bash scripts/test-jvm.sh
 ```
 
-Tests distinguish Japanese/Latin spacing, wrapping and marker options, borrowed unchanged output, upstream fence/container normalization, CLI Markdown/JSON routing, check statuses and errors, Java Unicode and invalid arguments, and 4,000 concurrent/repeated JNI calls with `-Xcheck:jni`.
+Tests distinguish Japanese/Latin spacing, wrapping and marker options, borrowed unchanged output, upstream fence/container normalization, CLI Markdown/JSON routing, check statuses and errors, the MCP HTTP lifecycle and boundary checks, Java Unicode and invalid arguments, and 4,000 concurrent/repeated JNI calls with `-Xcheck:jni`.
 
 GitHub Actions runs these checks for every pull request and push. After they pass, a separate job installs NDK r28c, builds and inspects the AAR, and uploads it as a workflow artifact. The Amp orb setup intentionally omits the NDK; local AAR builds require `ANDROID_NDK_HOME` as described above.
 
@@ -142,4 +207,4 @@ MARKDOWN_JA_WASM=/absolute/path/to/dprint_plugin_markdown_ja.wasm \
 cargo test --locked -p dprint-markdown-ja-formatter-core --test core stock_dprint_parity -- --ignored
 ```
 
-These adapters are MIT licensed. The upstream plugin is MIT, copyright **2024 0x6b** and **2020–2023 David Sherret**. Full dependency notices are generated from locked Cargo sources, not checked into Git. The AAR build automatically generates Android-only notices in `../target/THIRD_PARTY_NOTICES.md` and bundles them alongside `LICENSE`; generation failure stops packaging. For standalone CLI distribution, run `python3 scripts/license-notices.py dprint-markdown-ja-formatter-cli`, review the generated notices, and redistribute them and `LICENSE` alongside the binary. The generator requires Python 3 and covers Linux x86-64 and Android ARM64 (including build dependencies); regenerate/extend the platform set when distributing other targets.
+These adapters are MIT licensed. The upstream plugin is MIT, copyright **2024 0x6b** and **2020–2023 David Sherret**. Full dependency notices are generated from locked Cargo sources, not checked into Git. The AAR build automatically generates Android-only notices in `../target/THIRD_PARTY_NOTICES.md` and bundles them alongside `LICENSE`; generation failure stops packaging. For standalone CLI or MCP distribution, run `python3 scripts/license-notices.py dprint-markdown-ja-formatter-cli` or `python3 scripts/license-notices.py dprint-markdown-ja-formatter-mcp`, review the generated notices, and redistribute them and `LICENSE` alongside the binary or image. The generator requires Python 3 and covers Linux x86-64 and Android ARM64 (including build dependencies); regenerate/extend the platform set when distributing other targets.
